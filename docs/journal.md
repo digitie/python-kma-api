@@ -2,6 +2,37 @@
 
 새 항목은 항상 파일 맨 위에 추가(역시간순). 기존 항목은 절대 수정하지 않는다 — 잘못된 결정조차 기록으로 남는 것이 가치다.
 
+## 2026-09-11 (claude, asyncio 재검증 2인 적대적 리뷰 — ApiHubClient.aiter_pages 수정)
+
+**작업**: 기존 asyncio 전환(PR #25에서 이미 완료·머지됨)이 실제로 안전한지 재검증하기 위해
+독립된 서브에이전트 2명에게 서로 다른 관점(동시성/자원관리, 보안/데이터 무결성)으로 `src/kma`
+전체 비동기 경로를 다시 감사시켰다.
+
+**발견**: 두 리뷰어 모두 독립적으로 동일한 버그를 발견했다 — `ApiHubClient.aiter_pages()`
+(`AsyncApiHubClient.iter_pages()`로도 노출)가 공용 `pagination.aiter_pages()` 헬퍼를 거치지
+않고 `for offset in range(max_pages)` 루프를 직접 구현하고 있었다. `DataGoKrClient.aiter_pages()`
+는 이미 `pagination.aiter_pages()`에 위임하는데(동기/비동기 대칭 원칙), APIHub 쪽만 예외였다.
+그 결과 `max_pages`에 도달했는데 더 가져올 페이지가 남아있어도 동기 `iter_pages()`와 달리
+`PaginationLimitWarning`을 내지 않고 조용히 데이터를 잘랐고, `start_page`/`max_pages`/`max_items`
+입력값 검증도 없었다. `tests/*.py`에 `aiter_pages` 테스트가 전무해 CI로는 잡히지 않았다.
+
+**구현 상세**:
+- `apihub.py`에 `from .pagination import aiter_pages as _aiter_pages` 추가, `aiter_pages()`를
+  `datagokr.py`의 패턴과 동일하게 `_aiter_pages(...)`에 위임하도록 재작성.
+- 더 이상 쓰이지 않게 된 `_has_next_page` import와 로컬 `_body_item_count()` 헬퍼 제거
+  (동일 로직이 `pagination._item_count()`에 이미 있었음).
+- `tests/test_apihub.py`에 `PagingFakeSession`/`AsyncPagingFakeSession` fixture와 4개 테스트
+  추가 — 동기/비동기 페이지 수집 대칭성, `PaginationLimitWarning` 발생 대칭성, 인자 검증
+  대칭성. 수정 전 코드로 되돌려 새 테스트 2개가 실제로 실패함을 확인(회귀 방지 검증).
+- 두 번째 관점(보안/자격증명/result-code 처리)에서는 실제 버그 없음 — 재시도·백오프·자격증명
+  마스킹·`resultCode` 예외 매핑이 동기/비동기 경로에서 동일한 공용 함수를 공유함을 확인.
+  (informational, 이번 작업 범위 아님) `DataGoKrClient`의 타입화 helper 다수가 async facade에
+  대응 메서드가 없다는 completeness gap도 보고됐으나 버그/취약점은 아니라서 미조치.
+
+**검증**: `pytest -q` 153 passed·12 live skipped(기존 149→153, 신규 4개), ruff/mypy 통과,
+`KMA_RUN_LIVE=1`로 live e2e 재실행 — 9 passed·3 skipped(기존 결과와 동일, 3개는 서비스키 구독
+범위 밖이라 이미 문서화된 스킵).
+
 ## 2026-08-18 (codex, quota 22 비재시도 분류 + XML 200-body 경로)
 
 **작업**: 일일 한도 초과 `resultCode=22`를 `failure_kind="quota"`,

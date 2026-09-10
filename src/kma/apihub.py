@@ -37,7 +37,7 @@ from .metadata import (
     redact_credentials_in_text,
     request_params_from_url,
 )
-from .pagination import has_next_page as _has_next_page
+from .pagination import aiter_pages as _aiter_pages
 from .pagination import iter_pages as _iter_pages
 
 APIHUB_BASE_URL = "https://apihub.kma.go.kr"
@@ -547,9 +547,8 @@ class ApiHubClient:
         """Asynchronously iterate paginated APIHub `open_api` response bodies."""
 
         endpoint = f"/api/typ02/openApi/{service.strip('/')}/{operation.strip('/')}"
-        items_seen = 0
-        for offset in range(max_pages):
-            page_no = start_page + offset
+
+        async def _fetch_page(page_no: int) -> Mapping[str, Any]:
             response = await self.aopen_api(
                 service,
                 operation,
@@ -558,13 +557,15 @@ class ApiHubClient:
                 page_no=page_no,
                 num_of_rows=num_of_rows,
             )
-            body = _apihub_open_api_body(response, endpoint=endpoint)
+            return _apihub_open_api_body(response, endpoint=endpoint)
+
+        async for body in _aiter_pages(
+            _fetch_page,
+            start_page=start_page,
+            max_pages=max_pages,
+            max_items=max_items,
+        ):
             yield body
-            items_seen += _body_item_count(body)
-            if max_items is not None and items_seen >= max_items:
-                return
-            if not _has_next_page(body):
-                return
 
     def _portal_get(self, path: str, params: Mapping[str, Any]) -> ApiHubResponse:
         return self._get(path, params)
@@ -1061,18 +1062,6 @@ def _apihub_open_api_body(response: ApiHubResponse, *, endpoint: str) -> Mapping
             retryable=False,
         )
     return body
-
-
-def _body_item_count(body: Mapping[str, Any]) -> int:
-    items = body.get("items")
-    if not isinstance(items, Mapping):
-        return 0
-    raw = items.get("item")
-    if isinstance(raw, list):
-        return len(raw)
-    if isinstance(raw, Mapping):
-        return 1
-    return 0
 
 
 def _normalize_apihub_path(path: str) -> str:

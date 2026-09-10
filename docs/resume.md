@@ -2,7 +2,7 @@
 
 새 에이전트 세션이 시작될 때 "지금 어디까지 했고, 다음은 뭐 하면 되나"를 한 화면에서 답한다.
 
-## 현재 진척도 (2026-05-27 갱신)
+## 현재 진척도 (2026-09-11 갱신)
 
 - ✅ Windows 기준 고정 worktree alias 복구 및 `.codegraph/` Git 상태 노이즈 제거
 - ✅ `KmaClient` 타입화 단기예보 4개 endpoint (`getUltraSrtNcst`, `getUltraSrtFcst`, `getVilageFcst`, `getFcstVersion`)
@@ -17,7 +17,7 @@
 - ✅ `ForecastTimepoint` 피벗 + `pivot_forecast_items()` 시계열 helper
 - ✅ 예외 계층 (`KmaError` → `Auth`/`Request`/`Server`/`Parse`)
 - ✅ 인증값 보안 (redaction, sanitize, `.env` 로딩)
-- ✅ 161개 테스트 (149 mock + 12 live, 라이브는 키 구독에 따라 일부 skip), ruff/mypy 통과
+- ✅ 165개 테스트 (153 mock + 12 live, 라이브는 키 구독에 따라 일부 skip), ruff/mypy 통과
 - ✅ httpx async facade (`build_session`, `build_async_client`, sync/async retry)
 - ✅ `_parsing.py` 공유 파싱 도우미 추출 (PR #3)
 - ✅ `maplibre-vworld-js` 에이전트 스타일, 고정 worktree 규칙, AI용 가이드 문서, MCP 설정 도입 및 PR 머지 완료
@@ -34,6 +34,8 @@
 - ✅ data.go.kr NO_DATA(03)를 빈 결과로 정규화 (#18, PR #19)
 - ✅ 중기예보 `MidForecastItem.tm_fc` live 결측 수정 — 요청 `tmFc` 폴백 (#20)
 - ✅ `resultCode=22` 일일 quota 비재시도 분류 + HTTP 200 XML 오류 envelope 경로 고정
+- ✅ asyncio 전환 재검증 2인 적대적 리뷰 — `ApiHubClient.aiter_pages()`가 공용 `pagination.aiter_pages()`
+  를 우회해 `PaginationLimitWarning`/입력 검증을 누락하던 동기·비동기 비대칭 버그 수정 (2026-09-11)
 
 ## 다음 한 작업 (1시간 이내 분량)
 
