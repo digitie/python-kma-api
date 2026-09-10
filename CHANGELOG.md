@@ -6,6 +6,16 @@
 
 ### 수정
 
+- asyncio 전환 재검증을 위한 2인 적대적 리뷰어 서브에이전트(동시성/자원관리 관점, 보안/데이터
+  무결성 관점) 감사에서 발견·검증된 버그 수정: `ApiHubClient.aiter_pages()`/
+  `AsyncApiHubClient.iter_pages()`가 공용 `pagination.aiter_pages()` 헬퍼를 거치지 않고
+  자체 루프를 재구현해, `max_pages` 안전장치에 걸려 더 가져올 페이지가 남았을 때 동기
+  `iter_pages()`와 달리 `PaginationLimitWarning` 없이 조용히 데이터를 잘라내고, `start_page`/
+  `max_pages`/`max_items` 입력값 검증도 건너뛰던 문제 수정. 동기 `DataGoKrClient.aiter_pages()`가
+  이미 따르던 것과 동일하게 공용 헬퍼에 위임하도록 정렬. 두 리뷰어 모두 다른 관점(동시성 안전성,
+  자격증명 마스킹, result-code 처리, 응답 검증 대칭성)에서는 실제 버그를 찾지 못함(재시도/백오프
+  로직, 자격증명 마스킹, `resultCode` 예외 매핑은 동기/비동기 경로가 동일한 공용 함수를 공유함을
+  확인).
 - 4인 전문 리뷰어 서브에이전트의 적대적 코드 리뷰로 발견·검증된 버그 수정: `iter_pages()`가 응답
   body의 `pageNo`를 그대로 신뢰해 다음 페이지를 계산하다가 그 값이 없거나 항상 고정값이면 같은
   페이지를 최대 `max_pages`번 중복 재요청하며 서로 다른 페이지인 것처럼 반환하던 문제, `pageNo`/

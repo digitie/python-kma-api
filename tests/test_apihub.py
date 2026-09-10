@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import warnings
 from typing import Any, Callable
 
 import httpx
@@ -16,6 +18,7 @@ from kma.apihub import (
     redact_url_credentials,
 )
 from kma.exceptions import KmaAuthError
+from kma.pagination import PaginationLimitWarning
 
 
 class FakeResponse:
@@ -87,6 +90,55 @@ class FakeErrorSession(FakeSession):
     def get(self, url: str, *, params: dict[str, Any] | None, timeout: float) -> FakeResponse:
         self.calls.append({"url": url, "params": params, "timeout": timeout})
         return FakeErrorResponse("error")
+
+
+def _open_api_page_body(*, page_no: int, num_of_rows: int, total_count: int) -> str:
+    start = (page_no - 1) * num_of_rows + 1
+    end = min(page_no * num_of_rows, total_count)
+    items = [{"id": f"item-{i}"} for i in range(start, end + 1)]
+    payload = {
+        "response": {
+            "header": {"resultCode": "00", "resultMsg": "NORMAL_SERVICE"},
+            "body": {
+                "pageNo": page_no,
+                "numOfRows": num_of_rows,
+                "totalCount": total_count,
+                "items": {"item": items},
+            },
+        }
+    }
+    return json.dumps(payload)
+
+
+class PagingFakeSession:
+    """`pageNo` 요청 파라미터에 따라 서로 다른 body를 돌려주는 fake open_api session."""
+
+    def __init__(self, *, total_count: int, num_of_rows: int = 10) -> None:
+        self.total_count = total_count
+        self.num_of_rows = num_of_rows
+        self.calls: list[dict[str, Any]] = []
+
+    def get(self, url: str, *, params: dict[str, Any] | None, timeout: float) -> FakeResponse:
+        self.calls.append({"url": url, "params": params, "timeout": timeout})
+        assert params is not None
+        page_no = int(params["pageNo"])
+        body = _open_api_page_body(
+            page_no=page_no,
+            num_of_rows=self.num_of_rows,
+            total_count=self.total_count,
+        )
+        return FakeResponse(body, url=url, content_type="application/json")
+
+
+class AsyncPagingFakeSession(PagingFakeSession):
+    async def get(
+        self,
+        url: str,
+        *,
+        params: dict[str, Any] | None,
+        timeout: float,
+    ) -> FakeResponse:
+        return super().get(url, params=params, timeout=timeout)
 
 
 def assert_raises(exc_type: type[BaseException], func: Callable[[], object]) -> BaseException:
@@ -348,3 +400,101 @@ def test_apihub_discover_services_and_endpoints_use_portal_pages() -> None:
     assert session.calls[0]["url"] == "https://apihub.kma.go.kr/apiList.do"
     assert session.calls[0]["params"] == {"seqApi": 10}
     assert session.calls[1]["params"] == {"seqApi": 10, "seqApiSub": 288}
+
+
+def test_apihub_iter_pages_collects_all_pages_without_warning() -> None:
+    session = PagingFakeSession(total_count=25, num_of_rows=10)
+    client = ApiHubClient("hub-key", session=session)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", PaginationLimitWarning)
+        pages = list(
+            client.iter_pages("MidFcstInfoService", "getMidFcst", num_of_rows=10)
+        )
+
+    assert [page["pageNo"] for page in pages] == [1, 2, 3]
+    assert len(pages[-1]["items"]["item"]) == 5
+
+
+def test_apihub_aiter_pages_collects_all_pages_without_warning() -> None:
+    async def run() -> list[dict[str, Any]]:
+        session = AsyncPagingFakeSession(total_count=25, num_of_rows=10)
+        client = ApiHubClient("hub-key", async_session=session)
+        pages = []
+        async for page in client.aiter_pages(
+            "MidFcstInfoService", "getMidFcst", num_of_rows=10
+        ):
+            pages.append(page)
+        return pages
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", PaginationLimitWarning)
+        pages = asyncio.run(run())
+
+    assert [page["pageNo"] for page in pages] == [1, 2, 3]
+    assert len(pages[-1]["items"]["item"]) == 5
+
+
+def test_apihub_aiter_pages_warns_on_truncation_like_sync_iter_pages() -> None:
+    """비동기 aiter_pages는 동기 iter_pages와 동일하게 max_pages 절단을 경고해야 한다.
+
+    회귀 방지 대상: 이전에는 aiter_pages가 pagination.aiter_pages를 거치지 않고
+    직접 루프를 구현해 PaginationLimitWarning을 내지 않고 조용히 데이터를 잘랐다.
+    """
+
+    sync_session = PagingFakeSession(total_count=50, num_of_rows=10)
+    sync_client = ApiHubClient("hub-key", session=sync_session)
+    with warnings.catch_warnings(record=True) as sync_caught:
+        warnings.simplefilter("always")
+        sync_pages = list(
+            sync_client.iter_pages(
+                "MidFcstInfoService", "getMidFcst", num_of_rows=10, max_pages=2
+            )
+        )
+
+    async def run_async() -> tuple[list[dict[str, Any]], list[warnings.WarningMessage]]:
+        async_session = AsyncPagingFakeSession(total_count=50, num_of_rows=10)
+        async_client = ApiHubClient("hub-key", async_session=async_session)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            pages = [
+                page
+                async for page in async_client.aiter_pages(
+                    "MidFcstInfoService", "getMidFcst", num_of_rows=10, max_pages=2
+                )
+            ]
+        return pages, caught
+
+    async_pages, async_caught = asyncio.run(run_async())
+
+    assert len(sync_pages) == 2
+    assert len(async_pages) == 2
+    assert any(issubclass(w.category, PaginationLimitWarning) for w in sync_caught)
+    assert any(issubclass(w.category, PaginationLimitWarning) for w in async_caught)
+
+
+def test_apihub_aiter_pages_validates_arguments_like_sync_iter_pages() -> None:
+    session = PagingFakeSession(total_count=10, num_of_rows=10)
+    sync_client = ApiHubClient("hub-key", session=session)
+    sync_error = assert_raises(
+        ValueError,
+        lambda: list(
+            sync_client.iter_pages("MidFcstInfoService", "getMidFcst", max_pages=0)
+        ),
+    )
+    assert "max_pages" in str(sync_error)
+
+    async def run() -> BaseException:
+        async_session = AsyncPagingFakeSession(total_count=10, num_of_rows=10)
+        async_client = ApiHubClient("hub-key", async_session=async_session)
+        try:
+            async for _ in async_client.aiter_pages(
+                "MidFcstInfoService", "getMidFcst", max_pages=0
+            ):
+                pass
+        except ValueError as exc:
+            return exc
+        raise AssertionError("expected ValueError")
+
+    async_error = asyncio.run(run())
+    assert "max_pages" in str(async_error)
