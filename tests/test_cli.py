@@ -37,6 +37,12 @@ class FakeForecast:
 
 
 class FakeClient:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return None
+
     last_init_key: str | None = None
     last_from_env_called = False
     last_call: tuple[str, dict[str, Any]] | None = None
@@ -50,15 +56,15 @@ class FakeClient:
         cls.last_from_env_called = True
         return cls("env-key")
 
-    def now(self, **kwargs: Any) -> FakeSnapshot:
+    async def now(self, **kwargs: Any) -> FakeSnapshot:
         FakeClient.last_call = ("now", kwargs)
         return FakeSnapshot(datetime(2026, 4, 30, 14, 0, tzinfo=KST), 60, 127, 18.4)
 
-    def forecast(self, **kwargs: Any) -> list[FakeForecast]:
+    async def forecast(self, **kwargs: Any) -> list[FakeForecast]:
         FakeClient.last_call = ("forecast", kwargs)
         return [FakeForecast(datetime(2026, 4, 30, 15, 0, tzinfo=KST), 60, 127, "TMP", 18.4)]
 
-    def forecast_short(self, **kwargs: Any) -> list[FakeForecast]:
+    async def forecast_short(self, **kwargs: Any) -> list[FakeForecast]:
         FakeClient.last_call = ("forecast_short", kwargs)
         return [FakeForecast(datetime(2026, 4, 30, 15, 0, tzinfo=KST), 60, 127, "T1H", 18.4)]
 
@@ -68,6 +74,12 @@ class FakeApiHubResponse:
 
 
 class FakeApiHubClient:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return None
+
     last_init_key: str | None = None
     last_from_env_called = False
     last_call: tuple[str, dict[str, str]] | None = None
@@ -80,7 +92,7 @@ class FakeApiHubClient:
         cls.last_from_env_called = True
         return cls("env-hub-key")
 
-    def request_path(self, path: str, params: dict[str, str]) -> FakeApiHubResponse:
+    async def request_path(self, path: str, params: dict[str, str]) -> FakeApiHubResponse:
         FakeApiHubClient.last_call = (path, params)
         return FakeApiHubResponse()
 
@@ -110,9 +122,7 @@ def test_cli_forecast_short_uses_from_env_and_latlon() -> None:
     stream = io.StringIO()
     try:
         with redirect_stdout(stream):
-            result = cli.main(
-                ["forecast", "--short", "--lat", "37.5665", "--lon", "126.9780"]
-            )
+            result = cli.main(["forecast", "--short", "--lat", "37.5665", "--lon", "126.9780"])
     finally:
         cli.KmaClient = original
 
@@ -177,9 +187,7 @@ def test_cli_apihub_param_value_keeps_extra_equals() -> None:
     stream = io.StringIO()
     try:
         with redirect_stdout(stream):
-            result = cli.main(
-                ["apihub", "/api/typ01/url/x.php", "--param", "q=a=b&c"]
-            )
+            result = cli.main(["apihub", "/api/typ01/url/x.php", "--param", "q=a=b&c"])
     finally:
         cli.ApiHubClient = original
 
@@ -194,9 +202,7 @@ def test_cli_apihub_uses_explicit_auth_key() -> None:
     stream = io.StringIO()
     try:
         with redirect_stdout(stream):
-            result = cli.main(
-                ["apihub", "/api/typ01/url/x.php", "--auth-key", "explicit-hub"]
-            )
+            result = cli.main(["apihub", "/api/typ01/url/x.php", "--auth-key", "explicit-hub"])
     finally:
         cli.ApiHubClient = original
 

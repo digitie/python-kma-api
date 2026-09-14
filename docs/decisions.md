@@ -4,7 +4,7 @@
 
 ## ADR-001: httpx 기반 HTTP 클라이언트
 
-- **상태**: 확정
+- **상태**: [SUPERSEDED by ADR-006] 동기/비동기 공존 부분. httpx 선택은 유지한다.
 - **결정**: `requests` 대신 `httpx`를 사용한다.
 - **이유**: sync/async 통합 API, `follow_redirects` 기본 지원, `params=` 인코딩 동작이 data.go.kr serviceKey 전달에 적합.
 - **결과**: `_http.py`에서 `httpx.Client`/`httpx.AsyncClient`를 생성하고, `get_with_retries`/`async_get_with_retries`로 재시도를 처리한다.
@@ -36,3 +36,12 @@
 - **결정**: `_float_or_none`, `_int_or_none`, `_str_or_none`을 `_parsing.py` 공유 모듈로 추출한다.
 - **이유**: `client.py`와 `datagokr.py`에 동일 구현이 중복되어 있었다.
 - **결과**: 양쪽 모듈에서 import로 대체.
+
+
+## ADR-006: 비동기 전용 클라이언트와 공통 TPS (2026-09-14)
+
+사용자 요청에 따라 ADR-001의 동기/비동기 공존 부분을 대체한다. 기존 async 구현을 공개
+클라이언트의 일반 메서드 이름으로 통합하고 동기 네트워크 코드와 Async/aio 별칭을 제거한다.
+다른 API 라이브러리와 같은 AsyncTokenBucket 로직을 적용해 재시도·리다이렉트도 합산 제한한다.
+파싱·모델·카탈로그와 CLI/UI 진입점은 일반 함수로 유지한다. 기존 동기 소비자는 await,
+async for, async with로 전환해야 한다. 자세한 설정은 async-tps.md에 기록한다.

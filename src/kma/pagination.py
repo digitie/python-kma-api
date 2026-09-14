@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import warnings
-from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Any
 
 
@@ -30,52 +30,7 @@ def next_page_no(body: Mapping[str, Any]) -> int | None:
     return _int_from_body(body, "pageNo", default=1) + 1
 
 
-def iter_pages(
-    fetch_page: Callable[[int], Mapping[str, Any]],
-    *,
-    start_page: int = 1,
-    max_pages: int = 100,
-    max_items: int | None = None,
-) -> Iterator[Mapping[str, Any]]:
-    """`pageNo` metadata를 따라 data.go.kr 응답 body를 순회합니다.
-
-    `max_pages`와 `max_items`는 upstream API가 일관되지 않은 페이지네이션
-    metadata를 반환할 때 무한 루프를 막는 명시적 안전장치입니다.
-    """
-
-    if start_page < 1:
-        raise ValueError("start_page must be >= 1")
-    if max_pages < 1:
-        raise ValueError("max_pages must be >= 1")
-    if max_items is not None and max_items < 1:
-        raise ValueError("max_items must be >= 1")
-
-    page_no = start_page
-    pages_seen = 0
-    items_seen = 0
-    while True:
-        body = fetch_page(page_no)
-        yield body
-
-        pages_seen += 1
-        items_seen += _item_count(body)
-        if max_items is not None and items_seen >= max_items:
-            return
-
-        if not has_next_page(body):
-            return
-        if pages_seen >= max_pages:
-            warnings.warn(
-                f"iter_pages stopped after max_pages={max_pages} pages while "
-                "more pages were still available; results may be incomplete",
-                PaginationLimitWarning,
-                stacklevel=2,
-            )
-            return
-        page_no += 1
-
-
-async def aiter_pages(
+async def iter_pages(
     fetch_page: Callable[[int], Awaitable[Mapping[str, Any]]],
     *,
     start_page: int = 1,
@@ -111,7 +66,7 @@ async def aiter_pages(
             return
         if pages_seen >= max_pages:
             warnings.warn(
-                f"aiter_pages stopped after max_pages={max_pages} pages while "
+                f"iter_pages stopped after max_pages={max_pages} pages while "
                 "more pages were still available; results may be incomplete",
                 PaginationLimitWarning,
                 stacklevel=2,

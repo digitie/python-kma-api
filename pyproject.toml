@@ -32,6 +32,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "pytest>=8",
+  "pytest-asyncio>=0.24",
   "ruff>=0.5",
   "mypy>=1.10",
 ]
@@ -63,6 +64,7 @@ strict = true
 warn_unused_ignores = true
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["src"]
 markers = [

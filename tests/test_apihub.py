@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import asyncio
+import inspect
 import json
 import warnings
 from typing import Any, Callable
@@ -9,7 +9,6 @@ import httpx
 
 from kma.apihub import (
     ApiHubClient,
-    AsyncApiHubClient,
     detect_image_info,
     extract_apihub_endpoints,
     parse_apihub_sample_url,
@@ -65,7 +64,7 @@ class FakeSession:
         self.text = text
         self.calls: list[dict[str, Any]] = []
 
-    def get(self, url: str, *, params: dict[str, Any] | None, timeout: float) -> FakeResponse:
+    async def get(self, url: str, *, params: dict[str, Any] | None, timeout: float) -> FakeResponse:
         self.calls.append({"url": url, "params": params, "timeout": timeout})
         return FakeResponse(self.text, url=url)
 
@@ -87,7 +86,7 @@ class AsyncFakeSession:
 
 
 class FakeErrorSession(FakeSession):
-    def get(self, url: str, *, params: dict[str, Any] | None, timeout: float) -> FakeResponse:
+    async def get(self, url: str, *, params: dict[str, Any] | None, timeout: float) -> FakeResponse:
         self.calls.append({"url": url, "params": params, "timeout": timeout})
         return FakeErrorResponse("error")
 
@@ -118,7 +117,7 @@ class PagingFakeSession:
         self.num_of_rows = num_of_rows
         self.calls: list[dict[str, Any]] = []
 
-    def get(self, url: str, *, params: dict[str, Any] | None, timeout: float) -> FakeResponse:
+    async def get(self, url: str, *, params: dict[str, Any] | None, timeout: float) -> FakeResponse:
         self.calls.append({"url": url, "params": params, "timeout": timeout})
         assert params is not None
         page_no = int(params["pageNo"])
@@ -138,12 +137,14 @@ class AsyncPagingFakeSession(PagingFakeSession):
         params: dict[str, Any] | None,
         timeout: float,
     ) -> FakeResponse:
-        return super().get(url, params=params, timeout=timeout)
+        return await super().get(url, params=params, timeout=timeout)
 
 
-def assert_raises(exc_type: type[BaseException], func: Callable[[], object]) -> BaseException:
+async def assert_raises(exc_type: type[BaseException], func: Callable[[], object]) -> BaseException:
     try:
-        func()
+        result = func()
+        if inspect.isawaitable(result):
+            await result
     except exc_type as exc:
         return exc
     raise AssertionError(f"expected {exc_type.__name__}")
@@ -216,11 +217,11 @@ def test_extract_apihub_endpoints_deduplicates_generated_urls() -> None:
     assert endpoints[1].parameters == ("reg", "wrn")
 
 
-def test_apihub_request_path_appends_auth_key() -> None:
+async def test_apihub_request_path_appends_auth_key() -> None:
     session = FakeSession("ok")
     client = ApiHubClient("hub-key", session=session)
 
-    response = client.request_path("/api/typ01/url/kma_sfctm2.php", {"tm": "202211300900"})
+    response = await client.request_path("/api/typ01/url/kma_sfctm2.php", {"tm": "202211300900"})
 
     assert response.text == "ok"
     assert response.metadata is not None
@@ -231,12 +232,12 @@ def test_apihub_request_path_appends_auth_key() -> None:
     assert session.calls[0]["params"] == {"authKey": "hub-key", "tm": "202211300900"}
 
 
-def test_apihub_async_request_path_appends_auth_key() -> None:
+async def test_apihub_async_request_path_appends_auth_key() -> None:
     async def run() -> None:
         session = AsyncFakeSession("ok")
-        client = ApiHubClient("hub-key", async_session=session)
+        client = ApiHubClient("hub-key", session=session)
 
-        response = await client.arequest_path(
+        response = await client.request_path(
             "/api/typ01/url/kma_sfctm2.php",
             {"tm": "202211300900"},
         )
@@ -245,15 +246,15 @@ def test_apihub_async_request_path_appends_auth_key() -> None:
         assert session.calls[0]["url"] == "https://apihub.kma.go.kr/api/typ01/url/kma_sfctm2.php"
         assert session.calls[0]["params"] == {"authKey": "hub-key", "tm": "202211300900"}
 
-    asyncio.run(run())
+    await run()
 
 
-def test_apihub_aio_returns_async_facade() -> None:
+async def test_apihub_aio_returns_async_facade() -> None:
     async def run() -> None:
         session = AsyncFakeSession("ok")
-        client = ApiHubClient.aio("hub-key", async_session=session)
+        client = ApiHubClient("hub-key", session=session)
 
-        assert isinstance(client, AsyncApiHubClient)
+        assert isinstance(client, ApiHubClient)
         assert client.auth_key == "hub-key"
 
         async with client:
@@ -266,23 +267,23 @@ def test_apihub_aio_returns_async_facade() -> None:
         assert session.calls[0]["params"] == {"authKey": "hub-key", "tm": "202211300900"}
         assert client.closed is True
 
-    asyncio.run(run())
+    await run()
 
 
-def test_apihub_auth_key_strips_copied_whitespace() -> None:
+async def test_apihub_auth_key_strips_copied_whitespace() -> None:
     session = FakeSession("ok")
     client = ApiHubClient(" hub \n key\t", session=session)
 
-    client.request_path("/api/typ01/url/kma_sfctm2.php")
+    (await client.request_path("/api/typ01/url/kma_sfctm2.php"))
 
     assert session.calls[0]["params"] == {"authKey": "hubkey"}
 
 
-def test_apihub_open_api_builds_typ02_path_and_defaults() -> None:
+async def test_apihub_open_api_builds_typ02_path_and_defaults() -> None:
     session = FakeSession('{"response": "ok"}')
     client = ApiHubClient("hub-key", session=session)
 
-    response = client.open_api(
+    response = await client.open_api(
         "MidFcstInfoService",
         "getMidFcst",
         {"stnId": "108", "tmFc": "202605010600"},
@@ -296,14 +297,16 @@ def test_apihub_open_api_builds_typ02_path_and_defaults() -> None:
     assert session.calls[0]["params"]["numOfRows"] == 10
 
 
-def test_apihub_request_query_parts_preserves_legacy_bare_query() -> None:
+async def test_apihub_request_query_parts_preserves_legacy_bare_query() -> None:
     session = FakeSession("image")
     client = ApiHubClient("hub-key", session=session)
 
-    client.request_query_parts(
-        "/api/typ03/cgi/aws3/nph-awsm_tms_h06",
-        (("bare", "tm"), ("bare", "mode"), ("named", "_DT")),
-        {"tm": "202305031000", "mode": "0", "_DT": "RSW:AWSCHART"},
+    (
+        await client.request_query_parts(
+            "/api/typ03/cgi/aws3/nph-awsm_tms_h06",
+            (("bare", "tm"), ("bare", "mode"), ("named", "_DT")),
+            {"tm": "202305031000", "mode": "0", "_DT": "RSW:AWSCHART"},
+        )
     )
 
     assert session.calls[0]["url"] == (
@@ -313,16 +316,16 @@ def test_apihub_request_query_parts_preserves_legacy_bare_query() -> None:
     assert session.calls[0]["params"] is None
 
 
-def test_apihub_rejects_non_api_paths() -> None:
+async def test_apihub_rejects_non_api_paths() -> None:
     client = ApiHubClient("hub-key", session=FakeSession("ok"))
 
-    assert_raises(ValueError, lambda: client.request_path("/noticeList.do"))
+    (await assert_raises(ValueError, lambda: client.request_path("/noticeList.do")))
 
 
-def test_apihub_403_maps_to_auth_error_without_chained_url() -> None:
+async def test_apihub_403_maps_to_auth_error_without_chained_url() -> None:
     client = ApiHubClient("hub-key", session=FakeErrorSession("error"))
 
-    error = assert_raises(
+    error = await assert_raises(
         KmaAuthError,
         lambda: client.request_path("/api/typ01/url/kma_sfctm2.php", {"tm": "202211300900"}),
     )
@@ -334,11 +337,7 @@ def test_apihub_403_maps_to_auth_error_without_chained_url() -> None:
 
 
 def test_parse_apihub_text_table_uses_comment_header() -> None:
-    table = parse_apihub_text_table(
-        "# TM STN TA\n"
-        "202605010000 108 17.5\n"
-        "202605010100 108 18.0\n"
-    )
+    table = parse_apihub_text_table("# TM STN TA\n202605010000 108 17.5\n202605010100 108 18.0\n")
 
     assert table.headers == ("TM", "STN", "TA")
     assert table.rows[0]["TM"] == "202605010000"
@@ -357,10 +356,7 @@ def test_detect_image_info_reads_png_dimensions() -> None:
     content = (
         b"\x89PNG\r\n\x1a\n"
         b"\x00\x00\x00\r"
-        b"IHDR"
-        + (640).to_bytes(4, "big")
-        + (480).to_bytes(4, "big")
-        + b"\x08\x02\x00\x00\x00"
+        b"IHDR" + (640).to_bytes(4, "big") + (480).to_bytes(4, "big") + b"\x08\x02\x00\x00\x00"
     )
 
     assert detect_image_info(content) == ("png", 640, 480)
@@ -385,15 +381,15 @@ def test_redact_url_credentials_handles_generic_key_name() -> None:
     )
 
 
-def test_apihub_discover_services_and_endpoints_use_portal_pages() -> None:
+async def test_apihub_discover_services_and_endpoints_use_portal_pages() -> None:
     service_html = 'const apiList = [{"seqApi":288,"nmApi":"기상특보"}];'
     endpoint_html = "https://apihub.kma.go.kr/api/typ01/url/wrn_reg.php?tmfc=0&authKey=secret"
     session = FakeSession(service_html)
     client = ApiHubClient("hub-key", session=session)
 
-    services = client.discover_services((10,))
+    services = await client.discover_services((10,))
     session.text = endpoint_html
-    endpoints = client.discover_endpoints(services[0].category_id, services[0].service_id)
+    endpoints = await client.discover_endpoints(services[0].category_id, services[0].service_id)
 
     assert services[0].service_name == "기상특보"
     assert endpoints[0].path == "/api/typ01/url/wrn_reg.php"
@@ -402,40 +398,39 @@ def test_apihub_discover_services_and_endpoints_use_portal_pages() -> None:
     assert session.calls[1]["params"] == {"seqApi": 10, "seqApiSub": 288}
 
 
-def test_apihub_iter_pages_collects_all_pages_without_warning() -> None:
+async def test_apihub_iter_pages_collects_all_pages_without_warning() -> None:
     session = PagingFakeSession(total_count=25, num_of_rows=10)
     client = ApiHubClient("hub-key", session=session)
 
     with warnings.catch_warnings():
         warnings.simplefilter("error", PaginationLimitWarning)
-        pages = list(
-            client.iter_pages("MidFcstInfoService", "getMidFcst", num_of_rows=10)
-        )
+        pages = [
+            item
+            async for item in client.iter_pages("MidFcstInfoService", "getMidFcst", num_of_rows=10)
+        ]
 
     assert [page["pageNo"] for page in pages] == [1, 2, 3]
     assert len(pages[-1]["items"]["item"]) == 5
 
 
-def test_apihub_aiter_pages_collects_all_pages_without_warning() -> None:
+async def test_apihub_aiter_pages_collects_all_pages_without_warning() -> None:
     async def run() -> list[dict[str, Any]]:
         session = AsyncPagingFakeSession(total_count=25, num_of_rows=10)
-        client = ApiHubClient("hub-key", async_session=session)
+        client = ApiHubClient("hub-key", session=session)
         pages = []
-        async for page in client.aiter_pages(
-            "MidFcstInfoService", "getMidFcst", num_of_rows=10
-        ):
+        async for page in client.iter_pages("MidFcstInfoService", "getMidFcst", num_of_rows=10):
             pages.append(page)
         return pages
 
     with warnings.catch_warnings():
         warnings.simplefilter("error", PaginationLimitWarning)
-        pages = asyncio.run(run())
+        pages = await run()
 
     assert [page["pageNo"] for page in pages] == [1, 2, 3]
     assert len(pages[-1]["items"]["item"]) == 5
 
 
-def test_apihub_aiter_pages_warns_on_truncation_like_sync_iter_pages() -> None:
+async def test_apihub_aiter_pages_warns_on_truncation_like_sync_iter_pages() -> None:
     """비동기 aiter_pages는 동기 iter_pages와 동일하게 max_pages 절단을 경고해야 한다.
 
     회귀 방지 대상: 이전에는 aiter_pages가 pagination.aiter_pages를 거치지 않고
@@ -446,26 +441,27 @@ def test_apihub_aiter_pages_warns_on_truncation_like_sync_iter_pages() -> None:
     sync_client = ApiHubClient("hub-key", session=sync_session)
     with warnings.catch_warnings(record=True) as sync_caught:
         warnings.simplefilter("always")
-        sync_pages = list(
-            sync_client.iter_pages(
+        sync_pages = [
+            item
+            async for item in sync_client.iter_pages(
                 "MidFcstInfoService", "getMidFcst", num_of_rows=10, max_pages=2
             )
-        )
+        ]
 
     async def run_async() -> tuple[list[dict[str, Any]], list[warnings.WarningMessage]]:
         async_session = AsyncPagingFakeSession(total_count=50, num_of_rows=10)
-        async_client = ApiHubClient("hub-key", async_session=async_session)
+        async_client = ApiHubClient("hub-key", session=async_session)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             pages = [
                 page
-                async for page in async_client.aiter_pages(
+                async for page in async_client.iter_pages(
                     "MidFcstInfoService", "getMidFcst", num_of_rows=10, max_pages=2
                 )
             ]
         return pages, caught
 
-    async_pages, async_caught = asyncio.run(run_async())
+    async_pages, async_caught = await run_async()
 
     assert len(sync_pages) == 2
     assert len(async_pages) == 2
@@ -473,28 +469,28 @@ def test_apihub_aiter_pages_warns_on_truncation_like_sync_iter_pages() -> None:
     assert any(issubclass(w.category, PaginationLimitWarning) for w in async_caught)
 
 
-def test_apihub_aiter_pages_validates_arguments_like_sync_iter_pages() -> None:
+async def test_apihub_aiter_pages_validates_arguments_like_sync_iter_pages() -> None:
     session = PagingFakeSession(total_count=10, num_of_rows=10)
     sync_client = ApiHubClient("hub-key", session=session)
-    sync_error = assert_raises(
+    sync_error = await assert_raises(
         ValueError,
-        lambda: list(
-            sync_client.iter_pages("MidFcstInfoService", "getMidFcst", max_pages=0)
-        ),
+        lambda: _collect(sync_client.iter_pages("MidFcstInfoService", "getMidFcst", max_pages=0)),
     )
     assert "max_pages" in str(sync_error)
 
     async def run() -> BaseException:
         async_session = AsyncPagingFakeSession(total_count=10, num_of_rows=10)
-        async_client = ApiHubClient("hub-key", async_session=async_session)
+        async_client = ApiHubClient("hub-key", session=async_session)
         try:
-            async for _ in async_client.aiter_pages(
-                "MidFcstInfoService", "getMidFcst", max_pages=0
-            ):
+            async for _ in async_client.iter_pages("MidFcstInfoService", "getMidFcst", max_pages=0):
                 pass
         except ValueError as exc:
             return exc
         raise AssertionError("expected ValueError")
 
-    async_error = asyncio.run(run())
+    async_error = await run()
     assert "max_pages" in str(async_error)
+
+
+async def _collect(iterator):
+    return [item async for item in iterator]

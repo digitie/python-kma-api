@@ -5,6 +5,8 @@ description: 기상청 공공 날씨 API용 Python 클라이언트를 구현, �
 
 # KMA Python 라이브러리 빌더
 
+네트워크 I/O는 비동기 전용이다(ADR-006). `await`/`async for`/`async with`를 사용하며, Async 접두사 별칭·aio 팩터리·동기 네트워크 경로를 추가하지 않는다. JSON/XML `resultCode=03`은 최신 계약에 따라 빈 결과로 정규화한다.
+
 `python-kma-api`는 기상청 공공 날씨 API를 위한 Python 클라이언트이며 import package 이름은 `kma`입니다. public 동작을 바꾸기 전 `README.md`, `kma-api.md`, `docs/api-coverage.md`, `docs/apihub.md`, `docs/apihub-endpoints.md`, `docs/datagokr.md`, `AGENTS.md`를 확인합니다.
 
 ## 프로젝트 불변조건
@@ -20,7 +22,7 @@ description: 기상청 공공 날씨 API용 Python 클라이언트를 구현, �
 9. 붙여넣은 인증키 공백은 클라이언트 경계에서 제거하고, `.env`/`.env.local` 로컬 키 로딩을 지원합니다.
 10. KMA 예보 시간은 KST(UTC+9)입니다. naive `datetime`은 KST로 해석합니다.
 11. public API는 `location=LatLon(...)`, `location=GridPoint(...)`, WGS84 `lat`/`lon`, KMA 격자 `nx`/`ny` 중 하나를 받습니다. `nx`/`ny`를 위도/경도로 취급하지 않습니다.
-12. KMA `resultCode != "00"`은 typed exception으로 surface합니다.
+12. KMA `resultCode`가 "00"/"03" 이외인 경우는 typed exception으로 surface합니다.
 13. 기본 테스트는 실제 KMA/APIHub API를 호출하지 않습니다.
 14. APIHub 응답은 JSON, XML, 텍스트, 이미지, 바이너리가 섞여 있으므로 하나의 모델로 강제하지 않습니다.
 15. APIHub legacy 그래픽 URL의 이름 없는 query string은 순서가 의미이므로 `arg1`, `arg2` 순서를 보존합니다.
@@ -92,7 +94,7 @@ tests/
 
 ### `KmaClient`
 
-```python
+```text
 KmaClient(service_key, *, timeout=10, retries=3, base_url=None, session=None)
 KmaClient.from_env(name="DATA_GO_KR_SERVICE_KEY")
 ```
@@ -100,12 +102,22 @@ KmaClient.from_env(name="DATA_GO_KR_SERVICE_KEY")
 위치 인자는 다음 형식 중 하나만 받습니다.
 
 ```python
-kma.now(location=LatLon(37.5665, 126.9780))
-kma.now(location=GridPoint(60, 127))
-kma.now(location={"latitude": 37.5665, "longitude": 126.9780})
-kma.now(location={"nx": 60, "ny": 127})
-kma.now(lat=37.5665, lon=126.9780)
-kma.now(nx=60, ny=127)
+from kma import LatLon, GridPoint
+from kma import KmaClient
+import asyncio
+
+
+async def main() -> None:
+    async with KmaClient.from_env() as kma:
+        (await kma.now(location=LatLon(37.5665, 126.9780)))
+        (await kma.now(location=GridPoint(60, 127)))
+        (await kma.now(location={"latitude": 37.5665, "longitude": 126.9780}))
+        (await kma.now(location={"nx": 60, "ny": 127}))
+        (await kma.now(lat=37.5665, lon=126.9780))
+        (await kma.now(nx=60, ny=127))
+
+
+asyncio.run(main())
 ```
 
 거부해야 하는 입력:
@@ -127,9 +139,18 @@ kma.now(nx=60, ny=127)
 ### `DataGoKrClient`
 
 ```python
-DataGoKrClient(service_key)
-client.request("MidFcstInfoService", "getMidFcst", {"stnId": "108", "tmFc": "202605010600"})
-client.items("MidFcstInfoService", "getMidFcst", {...})
+from kma import latest_mid_fcst_time
+from kma import DataGoKrClient
+import asyncio
+
+
+async def main() -> None:
+    async with DataGoKrClient.from_env() as client:
+        (await client.request("MidFcstInfoService", "getMidFcst", {"stnId": "108", "tmFc": "202605010600"}))
+        (await client.items("MidFcstInfoService", "getMidFcst", {"stnId": "108", "tmFc": latest_mid_fcst_time()}))
+
+
+asyncio.run(main())
 ```
 
 규칙:
@@ -142,9 +163,17 @@ client.items("MidFcstInfoService", "getMidFcst", {...})
 ### `ApiHubClient`
 
 ```python
-ApiHubClient(auth_key)
-hub.request_path("/api/typ01/url/wrn_reg.php", {"tmfc": "0"})
-hub.open_api("MidFcstInfoService", "getMidFcst", {"stnId": "108", "tmFc": "202605010600"})
+from kma import ApiHubGeneratedClient
+import asyncio
+
+
+async def main() -> None:
+    async with ApiHubGeneratedClient.from_env() as hub:
+        (await hub.request_path("/api/typ01/url/wrn_reg.php", {"tmfc": "0"}))
+        (await hub.open_api("MidFcstInfoService", "getMidFcst", {"stnId": "108", "tmFc": "202605010600"}))
+
+
+asyncio.run(main())
 ```
 
 규칙:
@@ -158,11 +187,17 @@ hub.open_api("MidFcstInfoService", "getMidFcst", {"stnId": "108", "tmFc": "20260
 ### `ApiHubGeneratedClient`
 
 ```python
+import asyncio
 from kma import ApiHubGeneratedClient
 
-hub = ApiHubGeneratedClient.from_env()
-hub.kma_sfctm2(tm="202605010900", stn="108", help="1")
-hub.aws3_nph_awsm_tms_h06(use_sample=True)
+
+async def main() -> None:
+    async with ApiHubGeneratedClient.from_env() as hub:
+        (await hub.kma_sfctm2(tm="202605010900", stn="108", help="1"))
+        (await hub.aws3_nph_awsm_tms_h06(use_sample=True))
+
+
+asyncio.run(main())
 ```
 
 규칙:
@@ -306,7 +341,7 @@ KmaError
 | 코드 | 처리 |
 |---|---|
 | `00` | 성공 |
-| `03` | `KmaRequestError` |
+| `03` | 정상 빈 결과 |
 | `04` | `KmaServerError` |
 | `12` | `KmaRequestError` |
 | `20` | `KmaAuthError` |

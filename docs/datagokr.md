@@ -14,12 +14,18 @@
 ## 타입화 클라이언트
 
 ```python
+import asyncio
 from kma import KmaClient
 
-kma = KmaClient.from_env()
-kma.now(nx=60, ny=127)
-kma.forecast_short(nx=60, ny=127)
-kma.forecast(nx=60, ny=127)
+
+async def main() -> None:
+    async with KmaClient.from_env() as kma:
+        (await kma.now(nx=60, ny=127))
+        (await kma.forecast_short(nx=60, ny=127))
+        (await kma.forecast(nx=60, ny=127))
+
+
+asyncio.run(main())
 ```
 
 타입화 클라이언트가 다루는 endpoint:
@@ -32,34 +38,58 @@ kma.forecast(nx=60, ny=127)
 ## 범용 클라이언트
 
 ```python
+import asyncio
 from kma import DataGoKrClient
 
-client = DataGoKrClient.from_env()
-body = client.request(
-    "MidFcstInfoService",
-    "getMidFcst",
-    {"stnId": "108", "tmFc": "202605010600"},
-)
+
+async def main() -> None:
+    async with DataGoKrClient.from_env() as client:
+        body = (await client.request(
+            "MidFcstInfoService",
+            "getMidFcst",
+            {"stnId": "108", "tmFc": "202605010600"},
+        ))
+
+
+asyncio.run(main())
 ```
 
 표준 `response.body.items.item` 구조를 쓰는 operation은 `items()`를 사용할 수 있습니다.
 
 ```python
-items = client.items(
-    "MidFcstInfoService",
-    "getMidFcst",
-    {"stnId": "108", "tmFc": "202605010600"},
-)
+from kma import DataGoKrClient
+import asyncio
+
+
+async def main() -> None:
+    async with DataGoKrClient.from_env() as client:
+        items = (await client.items(
+            "MidFcstInfoService",
+            "getMidFcst",
+            {"stnId": "108", "tmFc": "202605010600"},
+        ))
+
+
+asyncio.run(main())
 ```
 
 metadata가 필요하면 `request_with_metadata()`를 사용합니다. metadata의 `request_params`에는 `serviceKey` 원문이 없습니다.
 
 ```python
-body, metadata = client.request_with_metadata(
-    "MidFcstInfoService",
-    "getMidFcst",
-    {"stnId": "108", "tmFc": "202605010600"},
-)
+from kma import DataGoKrClient
+import asyncio
+
+
+async def main() -> None:
+    async with DataGoKrClient.from_env() as client:
+        body, metadata = (await client.request_with_metadata(
+            "MidFcstInfoService",
+            "getMidFcst",
+            {"stnId": "108", "tmFc": "202605010600"},
+        ))
+
+
+asyncio.run(main())
 ```
 
 ## 기상청 API 카탈로그
@@ -69,24 +99,30 @@ body, metadata = client.request_with_metadata(
 카탈로그 86개 중 기존 data.go.kr `serviceKey` gateway 항목은 38개이며, 포털 상세기능에서 확인한 operation 160개를 함께 보존합니다. APIHub로 연결되는 48개 항목은 `gateway="apihub"`로 구분합니다. APIHub와 정확히 같은 `{service}/{operation}` 조합은 [data.go.kr/APIHub 중복 확인](datagokr-apihub-overlap.md)에 표로 정리했습니다.
 
 ```python
+import asyncio
 from kma import KMA_DATA_GOKR_DATASETS, DataGoKrClient, api_catalog
 
-client = DataGoKrClient.from_env()
 
-print(len(KMA_DATA_GOKR_DATASETS))  # 86
-for entry in api_catalog(gateway="datagokr")[:3]:
-    print(entry.dataset_name, entry.operation, entry.service_key_url)
+async def main() -> None:
+    async with DataGoKrClient.from_env() as client:
 
-asos_spec = client.dataset("15059093")
-rows = client.dataset_items(
-    "15059093",
-    {
-        "startDt": "20260501",
-        "endDt": "20260502",
-        "dataCd": "ASOS",
-        "dateCd": "DAY",
-    },
-)
+        print(len(KMA_DATA_GOKR_DATASETS))  # 86
+        for entry in api_catalog(gateway="datagokr")[:3]:
+            print(entry.dataset_name, entry.operation, entry.service_key_url)
+
+        asos_spec = client.dataset("15059093")
+        rows = (await client.dataset_items(
+            "15059093",
+            {
+                "startDt": "20260501",
+                "endDt": "20260502",
+                "dataCd": "ASOS",
+                "dateCd": "DAY",
+            },
+        ))
+
+
+asyncio.run(main())
 ```
 
 `api_catalog()`는 dataset을 operation 단위 row로 펼쳐 `dataset_name`, `label`, `gateway`, `service`, `operation`, `credential_param`, `service_key_url`을 제공합니다. Streamlit 같은 디버그 UI에서는 `label`을 선택 항목으로 쓰고, 사용자가 선택한 row의 `service_key_url`을 서비스키 발급/확인 링크로 보여주면 됩니다.
@@ -94,11 +130,20 @@ rows = client.dataset_items(
 `dataset_items()`는 서비스와 operation이 하나로 결정되는 data.go.kr gateway 항목을 바로 호출합니다. 여러 operation을 가진 항목은 `operation=`을 명시합니다.
 
 ```python
-waves = client.dataset_items(
-    "15102239",
-    {"beach_num": "1", "searchTime": "202205011600"},
-    operation="getWhBuoyBeach",
-)
+from kma import DataGoKrClient
+import asyncio
+
+
+async def main() -> None:
+    async with DataGoKrClient.from_env() as client:
+        waves = (await client.dataset_items(
+            "15102239",
+            {"beach_num": "1", "searchTime": "202205011600"},
+            operation="getWhBuoyBeach",
+        ))
+
+
+asyncio.run(main())
 ```
 
 카탈로그에는 APIHub로 연결되는 data.go.kr 항목도 `gateway="apihub"`로 남겨 둡니다. 이 항목은 `serviceKey` gateway가 아니므로 `dataset_items()`가 호출하지 않고, `ApiHubClient` 또는 `ApiHubGeneratedClient`를 사용해야 합니다.
@@ -123,24 +168,42 @@ client = DataGoKrClient.from_env(service_key_param="ServiceKey")
 data.go.kr 계열 response body가 `pageNo`, `numOfRows`, `totalCount`를 포함하면 다음 helper를 사용할 수 있습니다.
 
 ```python
+from kma import latest_mid_fcst_time
+from kma import DataGoKrClient
+import asyncio
 from kma import has_next_page, next_page_no
 
-body = client.request("MidFcstInfoService", "getMidLandFcst", {...})
-if has_next_page(body):
-    print(next_page_no(body))
+
+async def main() -> None:
+    async with DataGoKrClient.from_env() as client:
+        body = (await client.request("MidFcstInfoService", "getMidLandFcst", {"regId": "11B00000", "tmFc": latest_mid_fcst_time()}))
+        if has_next_page(body):
+            print(next_page_no(body))
+
+
+asyncio.run(main())
 ```
 
 `DataGoKrClient.iter_pages()`는 `max_pages` 또는 `max_items` guard로 무한 반복을 방지합니다.
 
 ```python
-for body in client.iter_pages(
-    "MidFcstInfoService",
-    "getMidLandFcst",
-    {"regId": "11B00000", "tmFc": "202605010600"},
-    num_of_rows=100,
-    max_pages=10,
-):
-    ...
+from kma import DataGoKrClient
+import asyncio
+
+
+async def main() -> None:
+    async with DataGoKrClient.from_env() as client:
+        async for body in (client.iter_pages(
+            "MidFcstInfoService",
+            "getMidLandFcst",
+            {"regId": "11B00000", "tmFc": "202605010600"},
+            num_of_rows=100,
+            max_pages=10,
+        )):
+            ...
+
+
+asyncio.run(main())
 ```
 
 ## 중기예보 helper
@@ -148,11 +211,20 @@ for body in client.iter_pages(
 중기예보는 `MidFcstInfoService` 호출과 row parsing까지만 책임집니다. `reg_id`는 단기예보 `nx`/`ny`와 다른 KMA 중기예보 권역 코드이며, `kma`는 임의 매핑을 추측하지 않습니다. `tm_fc`를 생략하면 06:00/18:00 발표와 10분 조회 지연을 반영한 최신 `tmFc`를 사용합니다.
 
 ```python
-client.mid_forecast(stn_id="108", tm_fc="202605010600")
-client.mid_land_forecast(reg_id="11B00000", tm_fc="202605010600")
-client.mid_land_forecast(reg_id="11B00000")  # 최신 조회 가능 tmFc 자동 선택
-client.mid_temperature_forecast(reg_id="11B10101", tm_fc="202605010600")
-client.mid_sea_forecast(reg_id="12A20000", tm_fc="202605010600")
+from kma import DataGoKrClient
+import asyncio
+
+
+async def main() -> None:
+    async with DataGoKrClient.from_env() as client:
+        (await client.mid_forecast(stn_id="108", tm_fc="202605010600"))
+        (await client.mid_land_forecast(reg_id="11B00000", tm_fc="202605010600"))
+        (await client.mid_land_forecast(reg_id="11B00000"))  # 최신 조회 가능 tmFc 자동 선택
+        (await client.mid_temperature_forecast(reg_id="11B10101", tm_fc="202605010600"))
+        (await client.mid_sea_forecast(reg_id="12A20000", tm_fc="202605010600"))
+
+
+asyncio.run(main())
 ```
 
 각 row는 `MidForecastItem`이며 `operation`, `tm_fc`, `reg_id`, `stn_id`, `raw`, `metadata`를 제공합니다.
@@ -164,40 +236,46 @@ client.mid_sea_forecast(reg_id="12A20000", tm_fc="202605010600")
 2026-05-07에 공공데이터포털 `기상청` 오픈 API 검색에서 확인한 주요 data.go.kr 서비스는 전용 helper를 제공합니다. endpoint별 안정적인 도메인 모델을 확정하기 어려운 서비스는 `DataGoKrItem`으로 감싸며, 각 row의 `raw`와 인증키가 제거된 `metadata`를 보존합니다.
 
 ```python
+import asyncio
 from kma import DataGoKrClient
 
-client = DataGoKrClient.from_env()
 
-daily = client.asos_daily_weather(
-    start_dt="20260501",
-    end_dt="20260502",
-    stn_ids=108,
-)
-hourly = client.asos_hourly_weather(
-    start_dt="20260501",
-    start_hh="00",
-    end_dt="20260501",
-    end_hh="23",
-    stn_ids=108,
-)
-warnings = client.weather_warning_list(
-    stn_id=108,
-    from_tm_fc="20260501",
-    to_tm_fc="20260502",
-)
-situation = client.weather_situation(stn_id=108)
-land = client.land_forecast_message(reg_id="11B10101")
-sea = client.sea_forecast_message(reg_id="12A20100")
-tour = client.tour_village_forecast(course_id=1, current_date="20260501", hour="09")
-climate = client.city_tour_climate_index(city_area_id=1100000000, current_date="20260501", day=3)
-uv = client.uv_index(area_no="1100000000", time="2026050106")
-air = client.air_diffusion_index(area_no="1100000000", time="2026050106")
-sen = client.sensible_temperature_index(
-    area_no="1100000000",
-    time="2026050106",
-    request_code="A41",
-)
-quake = client.earthquake_message_list(from_tm_fc="20260501", to_tm_fc="20260502")
+async def main() -> None:
+    async with DataGoKrClient.from_env() as client:
+
+        daily = (await client.asos_daily_weather(
+            start_dt="20260501",
+            end_dt="20260502",
+            stn_ids=108,
+        ))
+        hourly = (await client.asos_hourly_weather(
+            start_dt="20260501",
+            start_hh="00",
+            end_dt="20260501",
+            end_hh="23",
+            stn_ids=108,
+        ))
+        warnings = (await client.weather_warning_list(
+            stn_id=108,
+            from_tm_fc="20260501",
+            to_tm_fc="20260502",
+        ))
+        situation = (await client.weather_situation(stn_id=108))
+        land = (await client.land_forecast_message(reg_id="11B10101"))
+        sea = (await client.sea_forecast_message(reg_id="12A20100"))
+        tour = (await client.tour_village_forecast(course_id=1, current_date="20260501", hour="09"))
+        climate = (await client.city_tour_climate_index(city_area_id=1100000000, current_date="20260501", day=3))
+        uv = (await client.uv_index(area_no="1100000000", time="2026050106"))
+        air = (await client.air_diffusion_index(area_no="1100000000", time="2026050106"))
+        sen = (await client.sensible_temperature_index(
+            area_no="1100000000",
+            time="2026050106",
+            request_code="A41",
+        ))
+        quake = (await client.earthquake_message_list(from_tm_fc="20260501", to_tm_fc="20260502"))
+
+
+asyncio.run(main())
 ```
 
 지원 범위:
@@ -220,20 +298,26 @@ quake = client.earthquake_message_list(from_tm_fc="20260501", to_tm_fc="20260502
 (`BeachInfoservice`)는 `DataGoKrClient`의 전용 helper로 호출할 수 있습니다.
 
 ```python
+import asyncio
 from kma import DataGoKrClient
 
-client = DataGoKrClient.from_env()
 
-ultra = client.beach_ultra_short_forecast(
-    beach_num=1,
-    base_date="20220622",
-    base_time="1230",
-)
-forecast = client.beach_forecast(beach_num=1)
-waves = client.beach_wave_height(beach_num=1, search_time="202205011600")
-tides = client.beach_tide_info(beach_num=1, base_date="20220620")
-sun = client.beach_sun_info(beach_num=1, base_date="20220501")
-water = client.beach_water_temperature(beach_num=1, search_time="202205011600")
+async def main() -> None:
+    async with DataGoKrClient.from_env() as client:
+
+        ultra = (await client.beach_ultra_short_forecast(
+            beach_num=1,
+            base_date="20220622",
+            base_time="1230",
+        ))
+        forecast = (await client.beach_forecast(beach_num=1))
+        waves = (await client.beach_wave_height(beach_num=1, search_time="202205011600"))
+        tides = (await client.beach_tide_info(beach_num=1, base_date="20220620"))
+        sun = (await client.beach_sun_info(beach_num=1, base_date="20220501"))
+        water = (await client.beach_water_temperature(beach_num=1, search_time="202205011600"))
+
+
+asyncio.run(main())
 ```
 
 지원 operation:
@@ -266,7 +350,7 @@ DATA_GO_KR_SERVICE_KEY=<data.go.kr decoded service key>
 ## HTTP 200 XML 오류 envelope
 
 `dataType=JSON` 요청이어도 data.go.kr gateway는 quota·인증 오류를 HTTP 200
-`OpenAPI_ServiceResponse` XML로 반환할 수 있습니다. `DataGoKrClient`의 동기·비동기
+`OpenAPI_ServiceResponse` XML로 반환할 수 있습니다. `DataGoKrClient`의 비동기
 호출은 JSON parse 실패 때 XML의 `returnReasonCode`/`resultCode`를 공통 result-code
 정책으로 분류합니다. `03`은 빈 `items`/`totalCount=0`, `22`는
 `KmaRequestError(failure_kind="quota", retryable=False)`이며, XML이 아니거나 코드가

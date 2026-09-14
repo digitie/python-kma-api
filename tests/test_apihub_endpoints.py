@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 from kma.apihub_endpoints import (
@@ -34,7 +33,7 @@ class FakeSession:
         self.content = content
         self.calls: list[dict[str, Any]] = []
 
-    def get(self, url: str, *, params: dict[str, Any] | None, timeout: float) -> FakeResponse:
+    async def get(self, url: str, *, params: dict[str, Any] | None, timeout: float) -> FakeResponse:
         self.calls.append({"url": url, "params": params, "timeout": timeout})
         return FakeResponse(self.content, url=url)
 
@@ -44,9 +43,7 @@ class AsyncFakeSession:
         self.content = content
         self.calls: list[dict[str, Any]] = []
 
-    async def get(
-        self, url: str, *, params: dict[str, Any] | None, timeout: float
-    ) -> FakeResponse:
+    async def get(self, url: str, *, params: dict[str, Any] | None, timeout: float) -> FakeResponse:
         self.calls.append({"url": url, "params": params, "timeout": timeout})
         return FakeResponse(self.content, url=url)
 
@@ -69,11 +66,11 @@ def test_generated_attachment_metadata_includes_format_and_sample_links() -> Non
     )
 
 
-def test_generated_named_wrapper_calls_standard_endpoint() -> None:
+async def test_generated_named_wrapper_calls_standard_endpoint() -> None:
     session = FakeSession()
     client = ApiHubGeneratedClient("hub-key", session=session)
 
-    response = client.kma_sfctm2(tm="202605010900", stn="108", help="1")
+    response = await client.kma_sfctm2(tm="202605010900", stn="108", help="1")
 
     assert response.text == "ok"
     assert session.calls[0]["url"] == "https://apihub.kma.go.kr/api/typ01/url/kma_sfctm2.php"
@@ -85,11 +82,11 @@ def test_generated_named_wrapper_calls_standard_endpoint() -> None:
     }
 
 
-def test_generated_named_wrapper_can_use_sample_params() -> None:
+async def test_generated_named_wrapper_can_use_sample_params() -> None:
     session = FakeSession()
     client = ApiHubGeneratedClient("hub-key", session=session)
 
-    client.kma_sfctm2(use_sample=True, stn="108")
+    (await client.kma_sfctm2(use_sample=True, stn="108"))
 
     assert session.calls[0]["params"] == {
         "authKey": "hub-key",
@@ -99,49 +96,44 @@ def test_generated_named_wrapper_can_use_sample_params() -> None:
     }
 
 
-def test_generated_wrapper_preserves_bare_query_order() -> None:
+async def test_generated_wrapper_preserves_bare_query_order() -> None:
     session = FakeSession()
     client = ApiHubGeneratedClient("hub-key", session=session)
 
-    client.aws3_nph_awsm_tms_h06(use_sample=True, arg2="1")
+    (await client.aws3_nph_awsm_tms_h06(use_sample=True, arg2="1"))
 
     call = session.calls[0]
     assert call["params"] is None
     assert call["url"].startswith(
-        "https://apihub.kma.go.kr/api/typ03/cgi/aws3/nph-awsm_tms_h06"
-        "?202305031000&1&108,419"
+        "https://apihub.kma.go.kr/api/typ03/cgi/aws3/nph-awsm_tms_h06?202305031000&1&108,419"
     )
     assert call["url"].endswith("&_DT=RSW:AWSCHART&authKey=hub-key")
 
 
-def test_generated_async_call_endpoint_appends_auth_key() -> None:
+async def test_generated_async_call_endpoint_appends_auth_key() -> None:
     async def run() -> None:
         session = AsyncFakeSession(b"col1,col2\n1,2")
-        client = ApiHubGeneratedClient("hub-key", async_session=session)
+        client = ApiHubGeneratedClient("hub-key", session=session)
 
-        response = await client.acall_endpoint(
-            "kma_sfctm2", {"tm": "202605010900", "stn": "108"}
-        )
+        response = await client.call_endpoint("kma_sfctm2", {"tm": "202605010900", "stn": "108"})
 
         assert response.text == "col1,col2\n1,2"
-        assert session.calls[0]["url"] == (
-            "https://apihub.kma.go.kr/api/typ01/url/kma_sfctm2.php"
-        )
+        assert session.calls[0]["url"] == ("https://apihub.kma.go.kr/api/typ01/url/kma_sfctm2.php")
         assert session.calls[0]["params"] == {
             "authKey": "hub-key",
             "tm": "202605010900",
             "stn": "108",
         }
 
-    asyncio.run(run())
+    await run()
 
 
-def test_generated_async_call_endpoint_can_use_sample_params() -> None:
+async def test_generated_async_call_endpoint_can_use_sample_params() -> None:
     async def run() -> None:
         session = AsyncFakeSession()
-        client = ApiHubGeneratedClient("hub-key", async_session=session)
+        client = ApiHubGeneratedClient("hub-key", session=session)
 
-        await client.acall_endpoint("kma_sfctm2", use_sample=True, params={"stn": "108"})
+        await client.call_endpoint("kma_sfctm2", use_sample=True, params={"stn": "108"})
 
         assert session.calls[0]["params"] == {
             "authKey": "hub-key",
@@ -150,48 +142,45 @@ def test_generated_async_call_endpoint_can_use_sample_params() -> None:
             "help": "1",
         }
 
-    asyncio.run(run())
+    await run()
 
 
-def test_generated_async_text_endpoint_parses_table() -> None:
+async def test_generated_async_text_endpoint_parses_table() -> None:
     async def run() -> None:
         session = AsyncFakeSession(b"a b c\n1 2 3\n")
-        client = ApiHubGeneratedClient("hub-key", async_session=session)
+        client = ApiHubGeneratedClient("hub-key", session=session)
 
-        table = await client.atext_endpoint("kma_sfctm2", {"tm": "202605010900"})
+        table = await client.text_endpoint("kma_sfctm2", {"tm": "202605010900"})
 
         assert table.raw_lines
 
-    asyncio.run(run())
+    await run()
 
 
-def test_generated_async_call_endpoint_preserves_bare_query_order() -> None:
+async def test_generated_async_call_endpoint_preserves_bare_query_order() -> None:
     async def run() -> None:
         session = AsyncFakeSession()
-        client = ApiHubGeneratedClient("hub-key", async_session=session)
+        client = ApiHubGeneratedClient("hub-key", session=session)
 
-        await client.acall_endpoint("aws3_nph_awsm_tms_h06", use_sample=True, params={"arg2": "1"})
+        await client.call_endpoint("aws3_nph_awsm_tms_h06", use_sample=True, params={"arg2": "1"})
 
         call = session.calls[0]
         assert call["params"] is None
         assert call["url"].endswith("&_DT=RSW:AWSCHART&authKey=hub-key")
 
-    asyncio.run(run())
+    await run()
 
 
-def test_generated_image_endpoint_returns_python_image_metadata() -> None:
+async def test_generated_image_endpoint_returns_python_image_metadata() -> None:
     png = (
         b"\x89PNG\r\n\x1a\n"
         b"\x00\x00\x00\r"
-        b"IHDR"
-        + (32).to_bytes(4, "big")
-        + (24).to_bytes(4, "big")
-        + b"\x08\x02\x00\x00\x00"
+        b"IHDR" + (32).to_bytes(4, "big") + (24).to_bytes(4, "big") + b"\x08\x02\x00\x00\x00"
     )
     session = FakeSession(png)
     client = ApiHubGeneratedClient("hub-key", session=session)
 
-    image = client.image_endpoint("api_iwa_img_url_api_ret_grid_img", use_sample=True)
+    image = await client.image_endpoint("api_iwa_img_url_api_ret_grid_img", use_sample=True)
 
     assert image.format == "png"
     assert image.width == 32

@@ -1,8 +1,10 @@
 # RESUME — 작업 재개 가이드
 
+2026-09-14: 비동기 전용 및 공통 TPS 전환 완료. 검증/실제 API 결과는 verification-async-tps.md에 기록한다.
+
 새 에이전트 세션이 시작될 때 "지금 어디까지 했고, 다음은 뭐 하면 되나"를 한 화면에서 답한다.
 
-## 현재 진척도 (2026-09-11 갱신)
+## 현재 진척도 (2026-09-14 갱신)
 
 - ✅ Windows 기준 고정 worktree alias 복구 및 `.codegraph/` Git 상태 노이즈 제거
 - ✅ `KmaClient` 타입화 단기예보 4개 endpoint (`getUltraSrtNcst`, `getUltraSrtFcst`, `getVilageFcst`, `getFcstVersion`)
@@ -18,13 +20,13 @@
 - ✅ 예외 계층 (`KmaError` → `Auth`/`Request`/`Server`/`Parse`)
 - ✅ 인증값 보안 (redaction, sanitize, `.env` 로딩)
 - ✅ 165개 테스트 (153 mock + 12 live, 라이브는 키 구독에 따라 일부 skip), ruff/mypy 통과
-- ✅ httpx async facade (`build_session`, `build_async_client`, sync/async retry)
+- ✅ httpx 비동기 전용 세션과 공통 토큰 버킷
 - ✅ `_parsing.py` 공유 파싱 도우미 추출 (PR #3)
 - ✅ `maplibre-vworld-js` 에이전트 스타일, 고정 worktree 규칙, AI용 가이드 문서, MCP 설정 도입 및 PR 머지 완료
 - ✅ 에이전트 고정 워크트리(`python-kma-api-*`) 실제 생성 및 CodeGraph 색인(`codegraph init -i`) 완료
 - ✅ HTTP 에러 핸들링 공통 추출 — `raise_for_kma_http_error()` / `raise_for_kma_network_error()` (T-001, 6곳 통합)
 - ✅ result code 핸들링 통합 — `raise_for_kma_result_code()` (T-002)
-- ✅ async 패턴 일관화 — `AsyncDataGoKrClient`/`AsyncApiHubClient` facade, `aio()` 반환 변경 (T-003)
+- ✅ async 패턴 일관화 — 공개 클라이언트에 비동기 메서드 통합, 별도 facade 제거 (T-003)
 - ✅ ASOS helper 전용 Pydantic 모델 — `AsosDailyItem`/`AsosHourlyItem` (T-004)
 - ✅ 특보 전용 Pydantic 모델 — `WeatherWarningItem`, `weather_warning_list()` 적용 (T-005)
 - ✅ retry에 jitter 추가 — `_backoff_with_jitter()` equal jitter (T-006)

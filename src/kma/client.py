@@ -12,21 +12,22 @@ import httpx
 from ._credentials import DATA_GOKR_ENV_NAMES, first_env_value, normalize_api_key
 from ._http import (
     NO_DATA_RESULT_CODE,
-    async_get_with_retries,
     build_async_client,
-    build_session,
     empty_kma_body,
     get_with_retries,
     raise_for_kma_http_error,
     raise_for_kma_network_error,
     raise_for_kma_result_code,
     raise_for_kma_xml_error_body,
+    validate_async_session,
 )
 from ._parsing import float_or_none as _float_or_none
 from ._parsing import int_or_none as _int_or_none
+from ._ratelimit import AsyncTokenBucket
+from ._redact import credential_values, redact_exception
 from .codes import label_for, normalize_value, parse_amount
 from .enums import KmaEndpoint, WeatherCategory, coerce_category, enum_value
-from .exceptions import KmaParseError
+from .exceptions import KmaError, KmaParseError
 from .grid import validate_grid
 from .locations import LocationInput, normalize_location
 from .metadata import ResponseMetadata, make_response_metadata
@@ -67,7 +68,8 @@ class KmaClient:
         retries: int = 3,
         base_url: str | None = None,
         session: Any | None = None,
-        async_session: Any | None = None,
+        max_rps: float = 5.0,
+        rate_limiter: AsyncTokenBucket | None = None,
     ) -> None:
         self.service_key = normalize_api_key(service_key, field_name="service_key")
         self.timeout = timeout
@@ -75,10 +77,26 @@ class KmaClient:
         self.base_url = (base_url or DEFAULT_BASE_URL).rstrip("/")
         self._session = session
         self._owns_session = session is None
-        self._async_session = async_session
-        self._owns_async_session = async_session is None
-        self.forecast: ForecastService = ForecastService(self)
+        validate_async_session(session)
+        self.rate_limiter = rate_limiter if rate_limiter is not None else AsyncTokenBucket(max_rps)
         self.closed = False
+        self.forecast: ForecastService = ForecastService(self)
+
+    def _ensure_open(self) -> None:
+        if self.closed:
+            raise RuntimeError("client is closed")
+
+    @property
+    def session(self) -> Any:
+        return self._get_session()
+
+    async def aclose(self) -> None:
+        if not self.closed:
+            self.closed = True
+            if self._owns_session and self._session is not None:
+                close = getattr(self._session, "aclose", None)
+                if callable(close):
+                    await close()
 
     @classmethod
     def from_env(cls, name: str = "DATA_GO_KR_SERVICE_KEY", **kwargs: Any) -> KmaClient:
@@ -90,120 +108,14 @@ class KmaClient:
         service_key = first_env_value(names)
         return cls(service_key=service_key, **kwargs)
 
-    @classmethod
-    def aio(cls, service_key: str, **kwargs: Any) -> AsyncKmaClient:
-        """Create a client intended for async use."""
-
-        return AsyncKmaClient(service_key=service_key, **kwargs)
-
-    @classmethod
-    def aio_from_env(cls, name: str = "DATA_GO_KR_SERVICE_KEY", **kwargs: Any) -> AsyncKmaClient:
-        """Create an async-capable client from environment credentials."""
-
-        names = (
-            DATA_GOKR_ENV_NAMES
-            if name == "DATA_GO_KR_SERVICE_KEY"
-            else (name, *DATA_GOKR_ENV_NAMES)
-        )
-        service_key = first_env_value(names)
-        return AsyncKmaClient(service_key=service_key, **kwargs)
-
-    @property
-    def session(self) -> Any:
-        if self._session is None:
-            self._session = build_session(self.retries)
-        return self._session
-
-    def close(self) -> None:
-        if self._owns_session and self._session is not None:
-            close = getattr(self._session, "close", None)
-            if close is not None:
-                close()
-        self.closed = True
-
-    async def aclose(self) -> None:
-        if self._async_session is None or not self._owns_async_session:
-            return
-        aclose = getattr(self._async_session, "aclose", None)
-        close = getattr(self._async_session, "close", None)
-        if aclose is not None:
-            await aclose()
-        elif close is not None:
-            close()
-
-    def __enter__(self) -> KmaClient:
-        return self
-
-    def __exit__(self, *_exc: object) -> None:
-        self.close()
-
     async def __aenter__(self) -> KmaClient:
+        self._ensure_open()
         return self
 
     async def __aexit__(self, *_exc: object) -> None:
         await self.aclose()
 
-    def now(
-        self,
-        *,
-        location: LocationInput | None = None,
-        lat: float | None = None,
-        lon: float | None = None,
-        nx: int | None = None,
-        ny: int | None = None,
-        when: datetime | None = None,
-    ) -> WeatherSnapshot:
-        """초단기실황 관측값을 조회합니다.
-
-        `when`을 생략하면 `getUltraSrtNcst`의 최신 조회 가능 KST 기준시각을
-        자동으로 선택합니다.
-        """
-
-        grid_x, grid_y = self._coordinates(
-            location=location,
-            lat=lat,
-            lon=lon,
-            nx=nx,
-            ny=ny,
-        )
-        base_date, base_time = latest_ultra_srt_ncst_base(when)
-        fetched = self._fetch_items(
-            KmaEndpoint.ULTRA_SRT_NCST,
-            base_date=base_date,
-            base_time=base_time,
-            nx=grid_x,
-            ny=grid_y,
-        )
-        items = fetched.items
-        by_category = {str(item.get("category")): item.get("obsrValue") for item in items}
-        raw = {"items": items, "by_category": by_category}
-
-        return WeatherSnapshot(
-            observed_at=parse_kma_datetime(base_date, base_time),
-            nx=grid_x,
-            ny=grid_y,
-            temperature=_float_or_none(
-                by_category.get(WeatherCategory.CURRENT_TEMPERATURE.value)
-            ),
-            humidity=_int_or_none(by_category.get(WeatherCategory.HUMIDITY.value)),
-            wind_speed=_float_or_none(by_category.get(WeatherCategory.WIND_SPEED.value)),
-            wind_direction=_int_or_none(by_category.get(WeatherCategory.WIND_DIRECTION.value)),
-            precipitation=parse_amount(by_category.get(WeatherCategory.ONE_HOUR_RAIN.value)),
-            sky_label=label_for(
-                WeatherCategory.SKY,
-                by_category.get(WeatherCategory.SKY.value),
-                endpoint=KmaEndpoint.ULTRA_SRT_NCST,
-            ),
-            precipitation_label=label_for(
-                WeatherCategory.PRECIPITATION_TYPE,
-                by_category.get(WeatherCategory.PRECIPITATION_TYPE.value),
-                endpoint=KmaEndpoint.ULTRA_SRT_NCST,
-            ),
-            raw=raw,
-            metadata=fetched.metadata,
-        )
-
-    async def anow(
+    async def now(
         self,
         *,
         location: LocationInput | None = None,
@@ -223,7 +135,7 @@ class KmaClient:
             ny=ny,
         )
         base_date, base_time = latest_ultra_srt_ncst_base(when)
-        fetched = await self._afetch_items(
+        fetched = await self._fetch_items(
             KmaEndpoint.ULTRA_SRT_NCST,
             base_date=base_date,
             base_time=base_time,
@@ -238,9 +150,7 @@ class KmaClient:
             observed_at=parse_kma_datetime(base_date, base_time),
             nx=grid_x,
             ny=grid_y,
-            temperature=_float_or_none(
-                by_category.get(WeatherCategory.CURRENT_TEMPERATURE.value)
-            ),
+            temperature=_float_or_none(by_category.get(WeatherCategory.CURRENT_TEMPERATURE.value)),
             humidity=_int_or_none(by_category.get(WeatherCategory.HUMIDITY.value)),
             wind_speed=_float_or_none(by_category.get(WeatherCategory.WIND_SPEED.value)),
             wind_direction=_int_or_none(by_category.get(WeatherCategory.WIND_DIRECTION.value)),
@@ -259,39 +169,7 @@ class KmaClient:
             metadata=fetched.metadata,
         )
 
-    def forecast_short(
-        self,
-        *,
-        location: LocationInput | None = None,
-        lat: float | None = None,
-        lon: float | None = None,
-        nx: int | None = None,
-        ny: int | None = None,
-        when: datetime | None = None,
-    ) -> list[ForecastItem]:
-        """`getUltraSrtFcst` 초단기예보 항목을 조회합니다."""
-
-        grid_x, grid_y = self._coordinates(
-            location=location,
-            lat=lat,
-            lon=lon,
-            nx=nx,
-            ny=ny,
-        )
-        base_date, base_time = latest_ultra_srt_fcst_base(when)
-        fetched = self._fetch_items(
-            KmaEndpoint.ULTRA_SRT_FCST,
-            base_date=base_date,
-            base_time=base_time,
-            nx=grid_x,
-            ny=grid_y,
-        )
-        return [
-            _forecast_item(item, KmaEndpoint.ULTRA_SRT_FCST, metadata=fetched.metadata)
-            for item in fetched.items
-        ]
-
-    async def aforecast_short(
+    async def forecast_short(
         self,
         *,
         location: LocationInput | None = None,
@@ -302,60 +180,31 @@ class KmaClient:
         when: datetime | None = None,
     ) -> list[ForecastItem]:
         """Asynchronously fetch `getUltraSrtFcst` forecast items."""
+        try:
+            grid_x, grid_y = self._coordinates(
+                location=location,
+                lat=lat,
+                lon=lon,
+                nx=nx,
+                ny=ny,
+            )
+            base_date, base_time = latest_ultra_srt_fcst_base(when)
+            fetched = await self._fetch_items(
+                KmaEndpoint.ULTRA_SRT_FCST,
+                base_date=base_date,
+                base_time=base_time,
+                nx=grid_x,
+                ny=grid_y,
+            )
+            return [
+                _forecast_item(item, KmaEndpoint.ULTRA_SRT_FCST, metadata=fetched.metadata)
+                for item in fetched.items
+            ]
+        except KmaError as exc:
+            redact_exception(exc, self.service_key, *credential_values(None))
+            raise exc from None
 
-        grid_x, grid_y = self._coordinates(
-            location=location,
-            lat=lat,
-            lon=lon,
-            nx=nx,
-            ny=ny,
-        )
-        base_date, base_time = latest_ultra_srt_fcst_base(when)
-        fetched = await self._afetch_items(
-            KmaEndpoint.ULTRA_SRT_FCST,
-            base_date=base_date,
-            base_time=base_time,
-            nx=grid_x,
-            ny=grid_y,
-        )
-        return [
-            _forecast_item(item, KmaEndpoint.ULTRA_SRT_FCST, metadata=fetched.metadata)
-            for item in fetched.items
-        ]
-
-    def _forecast_vilage(
-        self,
-        *,
-        location: LocationInput | None = None,
-        lat: float | None = None,
-        lon: float | None = None,
-        nx: int | None = None,
-        ny: int | None = None,
-        when: datetime | None = None,
-    ) -> list[ForecastItem]:
-        """`getVilageFcst` 단기예보 항목을 조회합니다."""
-
-        grid_x, grid_y = self._coordinates(
-            location=location,
-            lat=lat,
-            lon=lon,
-            nx=nx,
-            ny=ny,
-        )
-        base_date, base_time = latest_vilage_base(when)
-        fetched = self._fetch_items(
-            KmaEndpoint.VILAGE_FCST,
-            base_date=base_date,
-            base_time=base_time,
-            nx=grid_x,
-            ny=grid_y,
-        )
-        return [
-            _forecast_item(item, KmaEndpoint.VILAGE_FCST, metadata=fetched.metadata)
-            for item in fetched.items
-        ]
-
-    async def aforecast(
+    async def _forecast_vilage(
         self,
         *,
         location: LocationInput | None = None,
@@ -366,49 +215,37 @@ class KmaClient:
         when: datetime | None = None,
     ) -> list[ForecastItem]:
         """Asynchronously fetch `getVilageFcst` forecast items."""
+        try:
+            grid_x, grid_y = self._coordinates(
+                location=location,
+                lat=lat,
+                lon=lon,
+                nx=nx,
+                ny=ny,
+            )
+            base_date, base_time = latest_vilage_base(when)
+            fetched = await self._fetch_items(
+                KmaEndpoint.VILAGE_FCST,
+                base_date=base_date,
+                base_time=base_time,
+                nx=grid_x,
+                ny=grid_y,
+            )
+            return [
+                _forecast_item(item, KmaEndpoint.VILAGE_FCST, metadata=fetched.metadata)
+                for item in fetched.items
+            ]
+        except KmaError as exc:
+            redact_exception(exc, self.service_key, *credential_values(None))
+            raise exc from None
 
-        grid_x, grid_y = self._coordinates(
-            location=location,
-            lat=lat,
-            lon=lon,
-            nx=nx,
-            ny=ny,
-        )
-        base_date, base_time = latest_vilage_base(when)
-        fetched = await self._afetch_items(
-            KmaEndpoint.VILAGE_FCST,
-            base_date=base_date,
-            base_time=base_time,
-            nx=grid_x,
-            ny=grid_y,
-        )
-        return [
-            _forecast_item(item, KmaEndpoint.VILAGE_FCST, metadata=fetched.metadata)
-            for item in fetched.items
-        ]
-
-    def version(self, ftype: str, when: datetime) -> Mapping[str, Any]:
-        """`getFcstVersion` 예보 버전 metadata를 조회합니다."""
-
-        when_kst = as_kst(when)
-        base_date = when_kst.strftime("%Y%m%d")
-        base_time = when_kst.strftime("%H%M")
-        items = self._request(
-            KmaEndpoint.FCST_VERSION,
-            {
-                "ftype": ftype,
-                "basedatetime": f"{base_date}{base_time}",
-            },
-        )
-        return items
-
-    async def aversion(self, ftype: str, when: datetime) -> Mapping[str, Any]:
+    async def version(self, ftype: str, when: datetime) -> Mapping[str, Any]:
         """Asynchronously fetch `getFcstVersion` metadata."""
 
         when_kst = as_kst(when)
         base_date = when_kst.strftime("%Y%m%d")
         base_time = when_kst.strftime("%H%M")
-        return await self._arequest(
+        return await self._request(
             KmaEndpoint.FCST_VERSION,
             {
                 "ftype": ftype,
@@ -428,7 +265,7 @@ class KmaClient:
         grid = normalize_location(location, lat=lat, lon=lon, nx=nx, ny=ny)
         return grid.nx, grid.ny
 
-    def _fetch_items(
+    async def _fetch_items(
         self,
         endpoint: str | KmaEndpoint,
         *,
@@ -437,7 +274,7 @@ class KmaClient:
         nx: int,
         ny: int,
     ) -> _FetchedItems:
-        response = self._request_with_metadata(
+        response = await self._request_with_metadata(
             endpoint,
             {
                 "base_date": base_date,
@@ -476,262 +313,77 @@ class KmaClient:
             )
         return _FetchedItems(items, response.metadata)
 
-    async def _afetch_items(
-        self,
-        endpoint: str | KmaEndpoint,
-        *,
-        base_date: str,
-        base_time: str,
-        nx: int,
-        ny: int,
-    ) -> _FetchedItems:
-        response = await self._arequest_with_metadata(
-            endpoint,
-            {
-                "base_date": base_date,
-                "base_time": base_time,
-                "nx": nx,
-                "ny": ny,
-            },
-        )
-        if has_next_page(response.body):
-            raise KmaParseError(
-                "KMA response has more items than the requested page size",
-                provider="data.go.kr",
-                endpoint=enum_value(endpoint),
-                failure_kind="parse",
-                retryable=False,
-            )
-        try:
-            items = response.body["items"]["item"]
-        except (KeyError, TypeError) as exc:
-            raise KmaParseError(
-                "KMA response did not contain items.item",
-                provider="data.go.kr",
-                endpoint=enum_value(endpoint),
-                failure_kind="parse",
-                retryable=False,
-            ) from exc
-        if isinstance(items, Mapping):
-            return _FetchedItems([items], response.metadata)
-        if not isinstance(items, list):
-            raise KmaParseError(
-                "KMA response items.item was not a list",
-                provider="data.go.kr",
-                endpoint=enum_value(endpoint),
-                failure_kind="parse",
-                retryable=False,
-            )
-        return _FetchedItems(items, response.metadata)
-
-    def _request(
+    async def _request(
         self,
         endpoint: str | KmaEndpoint,
         params: Mapping[str, Any],
     ) -> Mapping[str, Any]:
-        return self._request_with_metadata(endpoint, params).body
+        return (await self._request_with_metadata(endpoint, params)).body
 
-    async def _arequest(
-        self,
-        endpoint: str | KmaEndpoint,
-        params: Mapping[str, Any],
-    ) -> Mapping[str, Any]:
-        return (await self._arequest_with_metadata(endpoint, params)).body
-
-    def _request_with_metadata(
+    async def _request_with_metadata(
         self,
         endpoint: str | KmaEndpoint,
         params: Mapping[str, Any],
     ) -> _KmaBody:
-        endpoint_name = enum_value(endpoint)
-        request_params: dict[str, Any] = {
-            "serviceKey": self.service_key,
-            "pageNo": 1,
-            "numOfRows": 1000,
-            "dataType": "JSON",
-        }
-        request_params.update(params)
-        metadata = make_response_metadata(
-            provider="data.go.kr",
-            service_name=SERVICE_NAME,
-            endpoint=endpoint_name,
-            request_params=request_params,
-            base_date=str(request_params.get("base_date"))
-            if request_params.get("base_date") is not None
-            else None,
-            base_time=str(request_params.get("base_time"))
-            if request_params.get("base_time") is not None
-            else None,
-        )
-
         try:
-            response = get_with_retries(
-                self.session,
-                f"{self.base_url}/{endpoint_name}",
-                params=request_params,
-                timeout=self.timeout,
-                retries=self.retries,
-            )
-        except httpx.HTTPStatusError as exc:
-            raise_for_kma_http_error(
-                exc,
+            endpoint_name = enum_value(endpoint)
+            request_params: dict[str, Any] = {
+                "serviceKey": self.service_key,
+                "pageNo": 1,
+                "numOfRows": 1000,
+                "dataType": "JSON",
+            }
+            request_params.update(params)
+            metadata = make_response_metadata(
                 provider="data.go.kr",
+                service_name=SERVICE_NAME,
                 endpoint=endpoint_name,
-                label="KMA",
-            )
-        except httpx.RequestError:
-            raise_for_kma_network_error(
-                provider="data.go.kr",
-                endpoint=endpoint_name,
-                label="KMA",
-            )
-
-        return _parse_kma_body(response, endpoint_name, metadata)
-
-    async def _arequest_with_metadata(
-        self,
-        endpoint: str | KmaEndpoint,
-        params: Mapping[str, Any],
-    ) -> _KmaBody:
-        endpoint_name = enum_value(endpoint)
-        request_params: dict[str, Any] = {
-            "serviceKey": self.service_key,
-            "pageNo": 1,
-            "numOfRows": 1000,
-            "dataType": "JSON",
-        }
-        request_params.update(params)
-        metadata = make_response_metadata(
-            provider="data.go.kr",
-            service_name=SERVICE_NAME,
-            endpoint=endpoint_name,
-            request_params=request_params,
-            base_date=str(request_params.get("base_date"))
-            if request_params.get("base_date") is not None
-            else None,
-            base_time=str(request_params.get("base_time"))
-            if request_params.get("base_time") is not None
-            else None,
-        )
-
-        try:
-            response = await async_get_with_retries(
-                self._get_async_session(),
-                f"{self.base_url}/{endpoint_name}",
-                params=request_params,
-                timeout=self.timeout,
-                retries=self.retries,
-            )
-        except httpx.HTTPStatusError as exc:
-            raise_for_kma_http_error(
-                exc,
-                provider="data.go.kr",
-                endpoint=endpoint_name,
-                label="KMA",
-            )
-        except httpx.RequestError:
-            raise_for_kma_network_error(
-                provider="data.go.kr",
-                endpoint=endpoint_name,
-                label="KMA",
+                request_params=request_params,
+                base_date=str(request_params.get("base_date"))
+                if request_params.get("base_date") is not None
+                else None,
+                base_time=str(request_params.get("base_time"))
+                if request_params.get("base_time") is not None
+                else None,
             )
 
-        return _parse_kma_body(response, endpoint_name, metadata)
+            try:
+                response = await get_with_retries(
+                    self._get_session(),
+                    f"{self.base_url}/{endpoint_name}",
+                    params=request_params,
+                    timeout=self.timeout,
+                    retries=self.retries,
+                    rate_limiter=self.rate_limiter,
+                    ensure_open=self._ensure_open,
+                )
+            except httpx.HTTPStatusError as exc:
+                raise_for_kma_http_error(
+                    exc,
+                    provider="data.go.kr",
+                    endpoint=endpoint_name,
+                    label="KMA",
+                )
+            except httpx.RequestError:
+                raise_for_kma_network_error(
+                    provider="data.go.kr",
+                    endpoint=endpoint_name,
+                    label="KMA",
+                )
 
-    def _get_async_session(self) -> Any:
-        if self._async_session is None:
-            self._async_session = build_async_client()
-        return self._async_session
+            return _parse_kma_body(response, endpoint_name, metadata)
+        except KmaError as exc:
+            redact_exception(exc, self.service_key, *credential_values(params))
+            raise exc from None
+
+    def _get_session(self) -> Any:
+        self._ensure_open()
+        if self._session is None:
+            self._session = build_async_client()
+        return self._session
 
 
 class ForecastService:
-    """Service facade for KMA short-term forecast endpoints."""
-
-    def __init__(self, client: KmaClient) -> None:
-        self._client = client
-
-    def __call__(
-        self,
-        *,
-        location: LocationInput | None = None,
-        lat: float | None = None,
-        lon: float | None = None,
-        nx: int | None = None,
-        ny: int | None = None,
-        when: datetime | None = None,
-    ) -> list[ForecastItem]:
-        return self.vilage(
-            location=location,
-            lat=lat,
-            lon=lon,
-            nx=nx,
-            ny=ny,
-            when=when,
-        )
-
-    def now(
-        self,
-        *,
-        location: LocationInput | None = None,
-        lat: float | None = None,
-        lon: float | None = None,
-        nx: int | None = None,
-        ny: int | None = None,
-        when: datetime | None = None,
-    ) -> WeatherSnapshot:
-        return KmaClient.now(
-            self._client,
-            location=location,
-            lat=lat,
-            lon=lon,
-            nx=nx,
-            ny=ny,
-            when=when,
-        )
-
-    def short(
-        self,
-        *,
-        location: LocationInput | None = None,
-        lat: float | None = None,
-        lon: float | None = None,
-        nx: int | None = None,
-        ny: int | None = None,
-        when: datetime | None = None,
-    ) -> list[ForecastItem]:
-        return self._client.forecast_short(
-            location=location,
-            lat=lat,
-            lon=lon,
-            nx=nx,
-            ny=ny,
-            when=when,
-        )
-
-    def vilage(
-        self,
-        *,
-        location: LocationInput | None = None,
-        lat: float | None = None,
-        lon: float | None = None,
-        nx: int | None = None,
-        ny: int | None = None,
-        when: datetime | None = None,
-    ) -> list[ForecastItem]:
-        return self._client._forecast_vilage(
-            location=location,
-            lat=lat,
-            lon=lon,
-            nx=nx,
-            ny=ny,
-            when=when,
-        )
-
-    def version(self, ftype: str, when: datetime) -> Mapping[str, Any]:
-        return self._client.version(ftype, when)
-
-
-class AsyncForecastService:
     """Async service facade for KMA short-term forecast endpoints."""
 
     def __init__(self, client: KmaClient) -> None:
@@ -766,7 +418,7 @@ class AsyncForecastService:
         ny: int | None = None,
         when: datetime | None = None,
     ) -> WeatherSnapshot:
-        return await self._client.anow(
+        return await self._client.now(
             location=location,
             lat=lat,
             lon=lon,
@@ -785,7 +437,7 @@ class AsyncForecastService:
         ny: int | None = None,
         when: datetime | None = None,
     ) -> list[ForecastItem]:
-        return await self._client.aforecast_short(
+        return await self._client.forecast_short(
             location=location,
             lat=lat,
             lon=lon,
@@ -804,7 +456,7 @@ class AsyncForecastService:
         ny: int | None = None,
         when: datetime | None = None,
     ) -> list[ForecastItem]:
-        return await self._client.aforecast(
+        return await self._client._forecast_vilage(
             location=location,
             lat=lat,
             lon=lon,
@@ -814,57 +466,7 @@ class AsyncForecastService:
         )
 
     async def version(self, ftype: str, when: datetime) -> Mapping[str, Any]:
-        return await self._client.aversion(ftype, when)
-
-
-class AsyncKmaClient:
-    """Asynchronous facade for KMA public weather APIs."""
-
-    def __init__(
-        self,
-        service_key: str,
-        *,
-        timeout: float = 10,
-        retries: int = 3,
-        base_url: str | None = None,
-        async_session: Any | None = None,
-    ) -> None:
-        self._client = KmaClient(
-            service_key,
-            timeout=timeout,
-            retries=retries,
-            base_url=base_url,
-            async_session=async_session,
-        )
-        self.service_key = self._client.service_key
-        self.config = {
-            "base_url": self._client.base_url,
-            "timeout": self._client.timeout,
-            "retries": self._client.retries,
-        }
-        self.forecast = AsyncForecastService(self._client)
-        self.closed = False
-
-    @classmethod
-    def from_env(cls, name: str = "DATA_GO_KR_SERVICE_KEY", **kwargs: Any) -> AsyncKmaClient:
-        names = (
-            DATA_GOKR_ENV_NAMES
-            if name == "DATA_GO_KR_SERVICE_KEY"
-            else (name, *DATA_GOKR_ENV_NAMES)
-        )
-        service_key = first_env_value(names)
-        return cls(service_key=service_key, **kwargs)
-
-    async def __aenter__(self) -> AsyncKmaClient:
-        return self
-
-    async def __aexit__(self, *_exc: object) -> None:
-        await self.aclose()
-
-    async def aclose(self) -> None:
-        await self._client.aclose()
-        self._client.close()
-        self.closed = True
+        return await self._client.version(ftype, when)
 
 
 def _parse_kma_body(response: Any, endpoint_name: str, metadata: ResponseMetadata) -> _KmaBody:

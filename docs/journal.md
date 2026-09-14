@@ -1,5 +1,12 @@
 # JOURNAL — 작업 일지
 
+## 2026-09-14 — 비동기 전용 API와 공통 TPS
+
+- 원격 최신 main 기준으로 Kma/DataGoKr/ApiHub와 생성 endpoint 470개를 비동기로 통합했다.
+- 공통 버킷으로 첫 송신·재시도·redirect·탐색·디버그·페이지를 제한하고 취소/종료를 검증했다.
+- CLI/UI와 실제 생성기의 예제를 갱신했다. 검증 및 두 리뷰 결과는 verification-async-tps.md에 기록한다.
+
+
 새 항목은 항상 파일 맨 위에 추가(역시간순). 기존 항목은 절대 수정하지 않는다 — 잘못된 결정조차 기록으로 남는 것이 가치다.
 
 ## 2026-09-11 (claude, asyncio 재검증 2인 적대적 리뷰 — ApiHubClient.aiter_pages 수정)

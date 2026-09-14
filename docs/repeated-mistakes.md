@@ -87,7 +87,7 @@
 
 **증상:** 사용자가 KMA의 중첩 구조인 `response.header.body.items.item`을 직접 이해해야 합니다.
 
-**규칙:** 잘못된 envelope/item은 `KmaParseError`로, `resultCode != "00"`은 typed KMA exception으로 변환합니다.
+**규칙:** 잘못된 envelope/item은 `KmaParseError`로, `resultCode`가 "00"/"03" 이외인 경우는 typed KMA exception으로 변환합니다.
 
 **방지 테스트:** 잘못된 envelope, 누락된 `items`, 잘못된 forecast item, 단일 dict 응답, result code 매핑을 테스트합니다.
 

@@ -1,5 +1,7 @@
 # AGENTS.md
 
+네트워크 I/O는 비동기 전용이다(ADR-006). `await`/`async for`/`async with`를 사용하며, Async 접두사 별칭·aio 팩터리·동기 네트워크 경로를 추가하지 않는다. JSON/XML `resultCode=03`은 최신 계약에 따라 빈 결과로 정규화한다.
+
 ## 문서 언어 정책
 
 이 저장소의 모든 Markdown/RST 문서는 한글로 작성합니다. 공식 API 필드명, 코드 식별자, 명령어, URL, provider 원문처럼 그대로 보존해야 하는 값만 영어를 유지합니다. 새 문서나 기존 문서를 수정할 때도 이 규칙을 우선합니다.
@@ -57,7 +59,7 @@ PC 개발은 Windows 호스트에서 직접 진행합니다. 본 저장소는 Py
 3. **기본 테스트에서 실제 API 호출 금지** — 네트워크 호출 없는 mock/fixture 기반으로 검증해야 합니다. 실제 호출 테스트를 추가할 경우 `DATA_GO_KR_SERVICE_KEY`가 있을 때만 실행되도록 `integration` marker를 사용합니다.
 4. **`nx`/`ny`를 위도/경도로 취급 금지** — WGS84 좌표는 항상 `lat/lon` 순서로 다루며, KMA 격자 좌표(`nx/ny`)와 엄격히 구분합니다. 외부 프로그램용 위치 입력은 `LatLon`/`GridPoint` 또는 `location=`으로 표준화합니다.
 5. **`PCP`, `SNO` 범주 문자열을 무조건 float로 변환 금지** — `"1.0mm 미만"`, `"30.0~50.0mm"`, `"강수없음"` 같은 범주 문자열은 무리하게 숫자로 바꾸지 않고 보존합니다. 대표값이 필요할 때만 `parse_amount()`를 제공합니다.
-6. **KMA result code 실패를 빈 리스트 성공처럼 반환 금지** — `resultCode != "00"`은 반드시 명시적인 typed exception으로 surface합니다.
+6. **KMA result code 실패를 빈 리스트 성공처럼 반환 금지** — `resultCode`가 "00"/"03" 이외인 경우는 반드시 명시적인 typed exception으로 surface합니다.
 7. **data.go.kr와 APIHub의 인증 파라미터 혼용 금지** — data.go.kr 키는 `DATA_GO_KR_SERVICE_KEY`, APIHub 키는 `KMA_APIHUB_AUTH_KEY`로 엄격히 분리하여 사용합니다.
 8. **APIHub endpoint가 항상 JSON을 반환한다고 가정 금지** — 텍스트, 이미지, 바이너리 응답이 섞여 있으므로 `response_kind`나 `content` 타입을 명확히 처리합니다.
 9. **불필요한 wrapper/adapter 계층 추가 금지** — 단순 전달용 wrapper, 장기 호환 alias, 임시 facade를 지양하고, 다른 라이브러리에 검증된 구현이 있으면 라이선스와 출처를 확인한 뒤 프로젝트 내부 구현으로 직접 반영합니다.
@@ -122,7 +124,7 @@ PC 개발은 Windows 호스트에서 직접 진행합니다. 본 저장소는 Py
 - `dataType=JSON`을 기본으로 둡니다.
 - `pageNo`, `numOfRows` 기본값이 있습니다.
 - fake session 테스트가 요청 파라미터를 검증합니다.
-- `resultCode != "00"`은 typed exception입니다.
+- `resultCode`가 "00"/"03" 이외인 경우는 typed exception입니다.
 
 ### data.go.kr 범용 클라이언트
 

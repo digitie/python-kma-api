@@ -123,16 +123,22 @@ APIHub는 같은 포털 안에서도 응답 형식이 크게 다릅니다. `kma`
 ## 기본 사용
 
 ```python
+import asyncio
 from kma import ApiHubGeneratedClient
 
-hub = ApiHubGeneratedClient.from_env()  # KMA_APIHUB_AUTH_KEY 또는 KMA_APIHUB_KEY
 
-response = hub.kma_sfctm2(
-    tm="202605010900",
-    stn="108",
-    help="1",
-)
-print(response.text)
+async def main() -> None:
+    async with ApiHubGeneratedClient.from_env() as hub:
+
+        response = (await hub.kma_sfctm2(
+            tm="202605010900",
+            stn="108",
+            help="1",
+        ))
+        print(response.text)
+
+
+asyncio.run(main())
 ```
 
 실제 서버 테스트용 인증키는 `.env.local`에 보관할 수 있습니다. 이 파일은 `.gitignore`에 포함되어 커밋되지 않습니다.
@@ -146,7 +152,16 @@ KMA_APIHUB_AUTH_KEY=<APIHub authKey>
 홈페이지 예제 값을 채워 호출하려면 `use_sample=True`를 사용합니다. 예제 날짜가 오래되었을 수 있으므로 운영 코드에서는 필요한 인자를 직접 넘기는 방식을 권장합니다.
 
 ```python
-response = hub.kma_sfctm2(use_sample=True, stn="108")
+from kma import ApiHubGeneratedClient
+import asyncio
+
+
+async def main() -> None:
+    async with ApiHubGeneratedClient.from_env() as hub:
+        response = (await hub.kma_sfctm2(use_sample=True, stn="108"))
+
+
+asyncio.run(main())
 ```
 
 ## Endpoint metadata
@@ -172,12 +187,21 @@ print(spec.sample_params)
 일반 TXT endpoint는 `ApiHubResponse.text_table()`로 주석, header, row를 분리할 수 있습니다.
 
 ```python
-response = hub.kma_sfctm2(tm="202605010900", stn="108", help="1")
-table = response.text_table()
+from kma import ApiHubGeneratedClient
+import asyncio
 
-print(table.headers)
-print(table.rows[:3])
-print(table.comments[:3])
+
+async def main() -> None:
+    async with ApiHubGeneratedClient.from_env() as hub:
+        response = (await hub.kma_sfctm2(tm="202605010900", stn="108", help="1"))
+        table = response.text_table()
+
+        print(table.headers)
+        print(table.rows[:3])
+        print(table.comments[:3])
+
+
+asyncio.run(main())
 ```
 
 CSV식 응답은 delimiter를 지정합니다.
@@ -193,9 +217,18 @@ TXT 포맷은 endpoint마다 완전히 같지 않습니다. header를 안정적�
 이미지/그래픽 endpoint는 `image_endpoint()` 또는 `response.image()`를 사용합니다.
 
 ```python
-image = hub.image_endpoint("api_iwa_img_url_api_ret_grid_img", use_sample=True)
-print(image.format, image.width, image.height)
-content = image.content
+from kma import ApiHubGeneratedClient
+import asyncio
+
+
+async def main() -> None:
+    async with ApiHubGeneratedClient.from_env() as hub:
+        image = (await hub.image_endpoint("api_iwa_img_url_api_ret_grid_img", use_sample=True))
+        print(image.format, image.width, image.height)
+        content = image.content
+
+
+asyncio.run(main())
 ```
 
 `image.format`, `image.width`, `image.height`는 PNG/GIF/JPEG header에서 감지합니다. 포맷을 알 수 없는 바이너리는 `None`으로 둡니다.
@@ -221,15 +254,24 @@ for attachment in APIHUB_ATTACHMENTS:
 이런 endpoint는 `arg1`, `arg2`처럼 순서형 인자로 래핑했습니다.
 
 ```python
-response = hub.aws3_nph_awsm_tms_h06(
-    arg1="202305031000",
-    arg2="0",
-    arg3="108,419",
-    arg4="m",
-    arg5="108,419",
-    arg6="kh",
-    _DT="RSW:AWSCHART",
-)
+from kma import ApiHubGeneratedClient
+import asyncio
+
+
+async def main() -> None:
+    async with ApiHubGeneratedClient.from_env() as hub:
+        response = (await hub.aws3_nph_awsm_tms_h06(
+            arg1="202305031000",
+            arg2="0",
+            arg3="108,419",
+            arg4="m",
+            arg5="108,419",
+            arg6="kh",
+            _DT="RSW:AWSCHART",
+        ))
+
+
+asyncio.run(main())
 ```
 
 `ApiHubGeneratedClient`는 이 경우 `requests`의 `params=`를 쓰지 않고 query string을 직접 조립해 순서를 보존합니다.
@@ -239,24 +281,39 @@ response = hub.aws3_nph_awsm_tms_h06(
 목록에 없는 새 endpoint나 실험적 path는 `request_path()`로 직접 호출합니다.
 
 ```python
+import asyncio
 from kma import ApiHubClient
 
-hub = ApiHubClient.from_env()
-response = hub.request_path(
-    "/api/typ01/url/wrn_reg.php",
-    {"tmfc": "0"},
-)
+
+async def main() -> None:
+    async with ApiHubClient.from_env() as hub:
+        response = (await hub.request_path(
+            "/api/typ01/url/wrn_reg.php",
+            {"tmfc": "0"},
+        ))
+
+
+asyncio.run(main())
 ```
 
 `typ02/openApi` 형식은 `open_api()` helper를 사용할 수 있습니다.
 
 ```python
-response = hub.open_api(
-    "MidFcstInfoService",
-    "getMidFcst",
-    {"stnId": "108", "tmFc": "202605010600"},
-)
-data = response.json()
+from kma import ApiHubGeneratedClient
+import asyncio
+
+
+async def main() -> None:
+    async with ApiHubGeneratedClient.from_env() as hub:
+        response = (await hub.open_api(
+            "MidFcstInfoService",
+            "getMidFcst",
+            {"stnId": "108", "tmFc": "202605010600"},
+        ))
+        data = response.json()
+
+
+asyncio.run(main())
 ```
 
 기본값:
@@ -270,13 +327,31 @@ data = response.json()
 `discover_services()`는 공식 분류 id별 APIHub 서비스 목록을 가져옵니다.
 
 ```python
-services = hub.discover_services()
+from kma import ApiHubGeneratedClient
+import asyncio
+
+
+async def main() -> None:
+    async with ApiHubGeneratedClient.from_env() as hub:
+        services = (await hub.discover_services())
+
+
+asyncio.run(main())
 ```
 
 `discover_endpoints()`는 서비스 페이지의 예제 URL을 추출합니다.
 
 ```python
-endpoints = hub.discover_endpoints(category_id=10, service_id=288)
+from kma import ApiHubGeneratedClient
+import asyncio
+
+
+async def main() -> None:
+    async with ApiHubGeneratedClient.from_env() as hub:
+        endpoints = (await hub.discover_endpoints(category_id=10, service_id=288))
+
+
+asyncio.run(main())
 ```
 
 탐색 기능은 live 포털 구조를 읽는 도구입니다. 패키지에 포함된 함수형 래퍼는 `tools/update_apihub_endpoints.py`로 생성한 고정 snapshot입니다.

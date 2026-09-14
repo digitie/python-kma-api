@@ -116,11 +116,17 @@ python -m pytest -m "not integration"
 함수형 래퍼를 직접 smoke test할 때:
 
 ```python
+import asyncio
 from kma import ApiHubGeneratedClient
 
-hub = ApiHubGeneratedClient.from_env()
-response = hub.kma_sfctm2(tm="202605010900", stn="108", help="1")
-print(response.text[:200])
+
+async def main() -> None:
+    async with ApiHubGeneratedClient.from_env() as hub:
+        response = (await hub.kma_sfctm2(tm="202605010900", stn="108", help="1"))
+        print(response.text[:200])
+
+
+asyncio.run(main())
 ```
 
 이 테스트도 인증키가 필요하므로 기본 테스트에 넣지 않습니다.

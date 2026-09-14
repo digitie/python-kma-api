@@ -7394,7 +7394,8 @@ class ApiHubGeneratedClient(ApiHubClient):
     def sample_params(self, name: str) -> Mapping[str, str]:
         return self.endpoint(name).sample_params
 
-    def call_endpoint(
+
+    async def call_endpoint(
         self,
         name: str,
         params: Mapping[str, Any] | None = None,
@@ -7408,27 +7409,11 @@ class ApiHubGeneratedClient(ApiHubClient):
         if params:
             request_params.update(params)
         if any(kind == "bare" for kind, _name in spec.query_parts):
-            return self.request_query_parts(spec.path, spec.query_parts, request_params)
-        return self.request_path(spec.path, request_params)
+            return await self.request_query_parts(spec.path, spec.query_parts, request_params)
+        return await self.request_path(spec.path, request_params)
 
-    async def acall_endpoint(
-        self,
-        name: str,
-        params: Mapping[str, Any] | None = None,
-        *,
-        use_sample: bool = False,
-    ) -> ApiHubResponse:
-        spec = self.endpoint(name)
-        request_params: dict[str, Any] = {}
-        if use_sample:
-            request_params.update(spec.sample_params)
-        if params:
-            request_params.update(params)
-        if any(kind == "bare" for kind, _name in spec.query_parts):
-            return await self.arequest_query_parts(spec.path, spec.query_parts, request_params)
-        return await self.arequest_path(spec.path, request_params)
 
-    def text_endpoint(
+    async def text_endpoint(
         self,
         name: str,
         params: Mapping[str, Any] | None = None,
@@ -7436,41 +7421,21 @@ class ApiHubGeneratedClient(ApiHubClient):
         use_sample: bool = False,
         delimiter: str | None = None,
     ) -> ApiHubTextTable:
-        return self.call_endpoint(name, params, use_sample=use_sample).text_table(
-            delimiter=delimiter
-        )
-
-    async def atext_endpoint(
-        self,
-        name: str,
-        params: Mapping[str, Any] | None = None,
-        *,
-        use_sample: bool = False,
-        delimiter: str | None = None,
-    ) -> ApiHubTextTable:
-        response = await self.acall_endpoint(name, params, use_sample=use_sample)
+        response = await self.call_endpoint(name, params, use_sample=use_sample)
         return response.text_table(delimiter=delimiter)
 
-    def image_endpoint(
-        self,
-        name: str,
-        params: Mapping[str, Any] | None = None,
-        *,
-        use_sample: bool = False,
-    ) -> ApiHubImage:
-        return self.call_endpoint(name, params, use_sample=use_sample).image()
 
-    async def aimage_endpoint(
+    async def image_endpoint(
         self,
         name: str,
         params: Mapping[str, Any] | None = None,
         *,
         use_sample: bool = False,
     ) -> ApiHubImage:
-        response = await self.acall_endpoint(name, params, use_sample=use_sample)
+        response = await self.call_endpoint(name, params, use_sample=use_sample)
         return response.image()
 
-    def kma_sfctm2(
+    async def kma_sfctm2(
         self,
         *,
         use_sample: bool = False,
@@ -7480,9 +7445,9 @@ class ApiHubGeneratedClient(ApiHubClient):
 
 Path: /api/typ01/url/kma_sfctm2.php
 파라미터: tm, stn, help"""
-        return self.call_endpoint('kma_sfctm2', params, use_sample=use_sample)
+        return (await self.call_endpoint('kma_sfctm2', params, use_sample=use_sample))
 
-    def kma_sfctm3(
+    async def kma_sfctm3(
         self,
         *,
         use_sample: bool = False,
@@ -7493,9 +7458,9 @@ Path: /api/typ01/url/kma_sfctm2.php
 Path: /api/typ01/url/kma_sfctm3.php
 파라미터: tm1, tm2,
 stn, help"""
-        return self.call_endpoint('kma_sfctm3', params, use_sample=use_sample)
+        return (await self.call_endpoint('kma_sfctm3', params, use_sample=use_sample))
 
-    def kma_sfcdd(
+    async def kma_sfcdd(
         self,
         *,
         use_sample: bool = False,
@@ -7505,9 +7470,9 @@ stn, help"""
 
 Path: /api/typ01/url/kma_sfcdd.php
 파라미터: tm, stn, help"""
-        return self.call_endpoint('kma_sfcdd', params, use_sample=use_sample)
+        return (await self.call_endpoint('kma_sfcdd', params, use_sample=use_sample))
 
-    def kma_sfcdd3(
+    async def kma_sfcdd3(
         self,
         *,
         use_sample: bool = False,
@@ -7518,9 +7483,9 @@ Path: /api/typ01/url/kma_sfcdd.php
 Path: /api/typ01/url/kma_sfcdd3.php
 파라미터: tm1, tm2, stn,
 help"""
-        return self.call_endpoint('kma_sfcdd3', params, use_sample=use_sample)
+        return (await self.call_endpoint('kma_sfcdd3', params, use_sample=use_sample))
 
-    def kma_sfctm5(
+    async def kma_sfctm5(
         self,
         *,
         use_sample: bool = False,
@@ -7531,9 +7496,9 @@ help"""
 Path: /api/typ01/url/kma_sfctm5.php
 파라미터: tm2, obs, stn,
 disp, help"""
-        return self.call_endpoint('kma_sfctm5', params, use_sample=use_sample)
+        return (await self.call_endpoint('kma_sfctm5', params, use_sample=use_sample))
 
-    def sfc_norm1(
+    async def sfc_norm1(
         self,
         *,
         use_sample: bool = False,
@@ -7544,9 +7509,9 @@ disp, help"""
 Path: /api/typ01/url/sfc_norm1.php
 파라미터: norm, tmst, stn, MM1, DD1, MM2,
 DD2"""
-        return self.call_endpoint('sfc_norm1', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_norm1', params, use_sample=use_sample))
 
-    def sfc_yearly_info_service_get_year_sumry(
+    async def sfc_yearly_info_service_get_year_sumry(
         self,
         *,
         use_sample: bool = False,
@@ -7556,9 +7521,9 @@ DD2"""
 
 Path: /api/typ02/openApi/SfcYearlyInfoService/getYearSumry
 파라미터: pageNo, numOfRows, dataType, year"""
-        return self.call_endpoint('sfc_yearly_info_service_get_year_sumry', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_yearly_info_service_get_year_sumry', params, use_sample=use_sample))
 
-    def sfc_yearly_info_service_get_year_sumry2(
+    async def sfc_yearly_info_service_get_year_sumry2(
         self,
         *,
         use_sample: bool = False,
@@ -7570,9 +7535,9 @@ Path:
 /api/typ02/openApi/SfcYearlyInfoService/getYearSumry2
 파라미터: pageNo, numOfRows, dataType,
 year"""
-        return self.call_endpoint('sfc_yearly_info_service_get_year_sumry2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_yearly_info_service_get_year_sumry2', params, use_sample=use_sample))
 
-    def sfc_yearly_info_service_get_avg_ta_anamaly(
+    async def sfc_yearly_info_service_get_avg_ta_anamaly(
         self,
         *,
         use_sample: bool = False,
@@ -7584,9 +7549,9 @@ Path:
 /api/typ02/openApi/SfcYearlyInfoService/getAvgTaAnamaly
 파라미터: pageNo, numOfRows,
 dataType, year"""
-        return self.call_endpoint('sfc_yearly_info_service_get_avg_ta_anamaly', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_yearly_info_service_get_avg_ta_anamaly', params, use_sample=use_sample))
 
-    def sfc_yearly_info_service_get_rn_anamaly(
+    async def sfc_yearly_info_service_get_rn_anamaly(
         self,
         *,
         use_sample: bool = False,
@@ -7596,9 +7561,9 @@ dataType, year"""
 
 Path: /api/typ02/openApi/SfcYearlyInfoService/getRnAnamaly
 파라미터: pageNo, numOfRows, dataType, year"""
-        return self.call_endpoint('sfc_yearly_info_service_get_rn_anamaly', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_yearly_info_service_get_rn_anamaly', params, use_sample=use_sample))
 
-    def sfc_yearly_info_service_get_stn_phnmn_data(
+    async def sfc_yearly_info_service_get_stn_phnmn_data(
         self,
         *,
         use_sample: bool = False,
@@ -7610,9 +7575,9 @@ Path:
 /api/typ02/openApi/SfcYearlyInfoService/getStnPhnmnData
 파라미터: pageNo, numOfRows,
 dataType, year, station"""
-        return self.call_endpoint('sfc_yearly_info_service_get_stn_phnmn_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_yearly_info_service_get_stn_phnmn_data', params, use_sample=use_sample))
 
-    def sfc_yearly_info_service_get_stn_phnmn_data2(
+    async def sfc_yearly_info_service_get_stn_phnmn_data2(
         self,
         *,
         use_sample: bool = False,
@@ -7624,9 +7589,9 @@ Path:
 /api/typ02/openApi/SfcYearlyInfoService/getStnPhnmnData2
 파라미터: pageNo, numOfRows,
 dataType, year, station"""
-        return self.call_endpoint('sfc_yearly_info_service_get_stn_phnmn_data2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_yearly_info_service_get_stn_phnmn_data2', params, use_sample=use_sample))
 
-    def sfc_yearly_info_service_get_stn_phnmn_data3(
+    async def sfc_yearly_info_service_get_stn_phnmn_data3(
         self,
         *,
         use_sample: bool = False,
@@ -7638,9 +7603,9 @@ Path:
 /api/typ02/openApi/SfcYearlyInfoService/getStnPhnmnData3
 파라미터: pageNo, numOfRows,
 dataType, year, station"""
-        return self.call_endpoint('sfc_yearly_info_service_get_stn_phnmn_data3', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_yearly_info_service_get_stn_phnmn_data3', params, use_sample=use_sample))
 
-    def sfc_mtly_info_service_get_note(
+    async def sfc_mtly_info_service_get_note(
         self,
         *,
         use_sample: bool = False,
@@ -7651,9 +7616,9 @@ dataType, year, station"""
 Path: /api/typ02/openApi/SfcMtlyInfoService/getNote
 파라미터:
 pageNo, numOfRows, dataType, year, month"""
-        return self.call_endpoint('sfc_mtly_info_service_get_note', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_mtly_info_service_get_note', params, use_sample=use_sample))
 
-    def sfc_mtly_info_service_get_sfc_stn_lst_tbl(
+    async def sfc_mtly_info_service_get_sfc_stn_lst_tbl(
         self,
         *,
         use_sample: bool = False,
@@ -7665,9 +7630,9 @@ Path:
 /api/typ02/openApi/SfcMtlyInfoService/getSfcStnLstTbl
 파라미터: pageNo, numOfRows, dataType,
 year, month"""
-        return self.call_endpoint('sfc_mtly_info_service_get_sfc_stn_lst_tbl', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_mtly_info_service_get_sfc_stn_lst_tbl', params, use_sample=use_sample))
 
-    def sfc_mtly_info_service_get_mm_sumry(
+    async def sfc_mtly_info_service_get_mm_sumry(
         self,
         *,
         use_sample: bool = False,
@@ -7678,9 +7643,9 @@ year, month"""
 Path: /api/typ02/openApi/SfcMtlyInfoService/getMmSumry
 파라미터:
 pageNo, numOfRows, dataType, year, month"""
-        return self.call_endpoint('sfc_mtly_info_service_get_mm_sumry', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_mtly_info_service_get_mm_sumry', params, use_sample=use_sample))
 
-    def sfc_mtly_info_service_get_mm_sumry2(
+    async def sfc_mtly_info_service_get_mm_sumry2(
         self,
         *,
         use_sample: bool = False,
@@ -7690,9 +7655,9 @@ pageNo, numOfRows, dataType, year, month"""
 
 Path: /api/typ02/openApi/SfcMtlyInfoService/getMmSumry2
 파라미터: pageNo, numOfRows, dataType, year, month"""
-        return self.call_endpoint('sfc_mtly_info_service_get_mm_sumry2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_mtly_info_service_get_mm_sumry2', params, use_sample=use_sample))
 
-    def sfc_mtly_info_service_get_daily_wthr_data(
+    async def sfc_mtly_info_service_get_daily_wthr_data(
         self,
         *,
         use_sample: bool = False,
@@ -7704,9 +7669,9 @@ Path:
 /api/typ02/openApi/SfcMtlyInfoService/getDailyWthrData
 파라미터: pageNo, numOfRows,
 dataType, year, month, station"""
-        return self.call_endpoint('sfc_mtly_info_service_get_daily_wthr_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_mtly_info_service_get_daily_wthr_data', params, use_sample=use_sample))
 
-    def alw_sfc_sfc_ww_pnt(
+    async def alw_sfc_sfc_ww_pnt(
         self,
         *,
         use_sample: bool = False,
@@ -7717,9 +7682,9 @@ dataType, year, month, station"""
 Path: /api/typ03/php/alw/sfc/sfc_ww_pnt.php
 파라미터:
 obs, tm, val, stn, obj, map, grid, legend, size, itv, zoom_level, zoom_x, zoom_y, gov"""
-        return self.call_endpoint('alw_sfc_sfc_ww_pnt', params, use_sample=use_sample)
+        return (await self.call_endpoint('alw_sfc_sfc_ww_pnt', params, use_sample=use_sample))
 
-    def aws2_min(
+    async def aws2_min(
         self,
         *,
         use_sample: bool = False,
@@ -7730,9 +7695,9 @@ obs, tm, val, stn, obj, map, grid, legend, size, itv, zoom_level, zoom_x, zoom_y
 Path: /api/typ01/cgi-bin/url/nph-aws2_min
 파라미터: tm2, stn,
 disp, help"""
-        return self.call_endpoint('aws2_min', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws2_min', params, use_sample=use_sample))
 
-    def aws2_min_lst(
+    async def aws2_min_lst(
         self,
         *,
         use_sample: bool = False,
@@ -7743,9 +7708,9 @@ disp, help"""
 Path: /api/typ01/cgi-bin/url/nph-aws2_min_lst
 파라미터: tm2,
 stn, disp, help"""
-        return self.call_endpoint('aws2_min_lst', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws2_min_lst', params, use_sample=use_sample))
 
-    def aws2_min_cloud(
+    async def aws2_min_cloud(
         self,
         *,
         use_sample: bool = False,
@@ -7756,9 +7721,9 @@ stn, disp, help"""
 Path: /api/typ01/cgi-bin/url/nph-aws2_min_cloud
 파라미터:
 tm2, stn, disp, help"""
-        return self.call_endpoint('aws2_min_cloud', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws2_min_cloud', params, use_sample=use_sample))
 
-    def aws2_min_ca2(
+    async def aws2_min_ca2(
         self,
         *,
         use_sample: bool = False,
@@ -7768,9 +7733,9 @@ tm2, stn, disp, help"""
 
 Path: /api/typ01/cgi-bin/url/nph-aws2_min_ca2
 파라미터: tm2, itv, range, stn, disp, help"""
-        return self.call_endpoint('aws2_min_ca2', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws2_min_ca2', params, use_sample=use_sample))
 
-    def aws2_min_ca3(
+    async def aws2_min_ca3(
         self,
         *,
         use_sample: bool = False,
@@ -7781,9 +7746,9 @@ Path: /api/typ01/cgi-bin/url/nph-aws2_min_ca2
 Path: /api/typ01/cgi-bin/url/nph-
 aws2_min_ca3
 파라미터: tm2, itv, range, stn, disp, help"""
-        return self.call_endpoint('aws2_min_ca3', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws2_min_ca3', params, use_sample=use_sample))
 
-    def aws2_min_vis(
+    async def aws2_min_vis(
         self,
         *,
         use_sample: bool = False,
@@ -7794,9 +7759,9 @@ aws2_min_ca3
 Path: /api/typ01/cgi-bin/url/nph-aws2_min_vis
 파라미터: tm2,
 stn, disp, help"""
-        return self.call_endpoint('aws2_min_vis', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws2_min_vis', params, use_sample=use_sample))
 
-    def aws2_min_vis3(
+    async def aws2_min_vis3(
         self,
         *,
         use_sample: bool = False,
@@ -7807,9 +7772,9 @@ stn, disp, help"""
 Path: /api/typ01/cgi-bin/url/nph-
 aws2_min_vis3
 파라미터: tm2, itv, range, stn, disp, help"""
-        return self.call_endpoint('aws2_min_vis3', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws2_min_vis3', params, use_sample=use_sample))
 
-    def aws2_min_ww1(
+    async def aws2_min_ww1(
         self,
         *,
         use_sample: bool = False,
@@ -7820,9 +7785,9 @@ aws2_min_vis3
 Path: /api/typ01/cgi-bin/url/nph-aws2_min_ww1
 파라미터: tm2,
 itv, range, stn, help"""
-        return self.call_endpoint('aws2_min_ww1', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws2_min_ww1', params, use_sample=use_sample))
 
-    def aws2_min_ww2(
+    async def aws2_min_ww2(
         self,
         *,
         use_sample: bool = False,
@@ -7833,9 +7798,9 @@ itv, range, stn, help"""
 Path: /api/typ01/cgi-bin/url/nph-aws2_min_ww2
 파라미터:
 tm2, itv, range, stn, disp, help"""
-        return self.call_endpoint('aws2_min_ww2', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws2_min_ww2', params, use_sample=use_sample))
 
-    def aws3_min_mob(
+    async def aws3_min_mob(
         self,
         *,
         use_sample: bool = False,
@@ -7846,9 +7811,9 @@ tm2, itv, range, stn, disp, help"""
 Path: /api/typ01/cgi-bin/url/nph-aws3_min_mob
 파라미터: tm1,
 tm2, stn, disp, help"""
-        return self.call_endpoint('aws3_min_mob', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws3_min_mob', params, use_sample=use_sample))
 
-    def awsh(
+    async def awsh(
         self,
         *,
         use_sample: bool = False,
@@ -7858,9 +7823,9 @@ tm2, stn, disp, help"""
 
 Path: /api/typ01/url/awsh.php
 파라미터: var, tm, help"""
-        return self.call_endpoint('awsh', params, use_sample=use_sample)
+        return (await self.call_endpoint('awsh', params, use_sample=use_sample))
 
-    def awsh_2(
+    async def awsh_2(
         self,
         *,
         use_sample: bool = False,
@@ -7870,9 +7835,9 @@ Path: /api/typ01/url/awsh.php
 
 Path: /api/typ01/url/awsh.php
 파라미터: tm, help"""
-        return self.call_endpoint('awsh_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('awsh_2', params, use_sample=use_sample))
 
-    def sfc_aws_day(
+    async def sfc_aws_day(
         self,
         *,
         use_sample: bool = False,
@@ -7883,9 +7848,9 @@ Path: /api/typ01/url/awsh.php
 Path: /api/typ01/url/sfc_aws_day.php
 파라미터: tm2, obs,
 stn, disp, help"""
-        return self.call_endpoint('sfc_aws_day', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_aws_day', params, use_sample=use_sample))
 
-    def aws_yearly_info_service_get_stnby_mm_sumry(
+    async def aws_yearly_info_service_get_stnby_mm_sumry(
         self,
         *,
         use_sample: bool = False,
@@ -7897,9 +7862,9 @@ Path:
 /api/typ02/openApi/AwsYearlyInfoService/getStnbyMmSumry
 파라미터: pageNo, numOfRows,
 dataType, year, month, station"""
-        return self.call_endpoint('aws_yearly_info_service_get_stnby_mm_sumry', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws_yearly_info_service_get_stnby_mm_sumry', params, use_sample=use_sample))
 
-    def aws_yearly_info_service_get_year_sumry(
+    async def aws_yearly_info_service_get_year_sumry(
         self,
         *,
         use_sample: bool = False,
@@ -7909,9 +7874,9 @@ dataType, year, month, station"""
 
 Path: /api/typ02/openApi/AwsYearlyInfoService/getYearSumry
 파라미터: pageNo, numOfRows, dataType, year, month"""
-        return self.call_endpoint('aws_yearly_info_service_get_year_sumry', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws_yearly_info_service_get_year_sumry', params, use_sample=use_sample))
 
-    def aws_yearly_info_service_get_aws_stn_lst_tbl(
+    async def aws_yearly_info_service_get_aws_stn_lst_tbl(
         self,
         *,
         use_sample: bool = False,
@@ -7923,9 +7888,9 @@ Path:
 /api/typ02/openApi/AwsYearlyInfoService/getAwsStnLstTbl
 파라미터: pageNo, numOfRows,
 dataType, year, month"""
-        return self.call_endpoint('aws_yearly_info_service_get_aws_stn_lst_tbl', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws_yearly_info_service_get_aws_stn_lst_tbl', params, use_sample=use_sample))
 
-    def aws_yearly_info_service_get_note(
+    async def aws_yearly_info_service_get_note(
         self,
         *,
         use_sample: bool = False,
@@ -7936,9 +7901,9 @@ dataType, year, month"""
 Path: /api/typ02/openApi/AwsYearlyInfoService/getNote
 파라미터:
 pageNo, numOfRows, dataType, year"""
-        return self.call_endpoint('aws_yearly_info_service_get_note', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws_yearly_info_service_get_note', params, use_sample=use_sample))
 
-    def aws_mtly_info_service_get_daily_aws_data(
+    async def aws_mtly_info_service_get_daily_aws_data(
         self,
         *,
         use_sample: bool = False,
@@ -7950,9 +7915,9 @@ Path:
 /api/typ02/openApi/AwsMtlyInfoService/getDailyAwsData
 파라미터: pageNo, numOfRows, dataType,
 year, month, station"""
-        return self.call_endpoint('aws_mtly_info_service_get_daily_aws_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws_mtly_info_service_get_daily_aws_data', params, use_sample=use_sample))
 
-    def aws_mtly_info_service_get_mm_sumry(
+    async def aws_mtly_info_service_get_mm_sumry(
         self,
         *,
         use_sample: bool = False,
@@ -7963,9 +7928,9 @@ year, month, station"""
 Path: /api/typ02/openApi/AwsMtlyInfoService/getMmSumry
 파라미터:
 pageNo, numOfRows, dataType, year, month"""
-        return self.call_endpoint('aws_mtly_info_service_get_mm_sumry', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws_mtly_info_service_get_mm_sumry', params, use_sample=use_sample))
 
-    def aws_mtly_info_service_get_aws_stn_lst_tbl(
+    async def aws_mtly_info_service_get_aws_stn_lst_tbl(
         self,
         *,
         use_sample: bool = False,
@@ -7977,9 +7942,9 @@ Path:
 /api/typ02/openApi/AwsMtlyInfoService/getAwsStnLstTbl
 파라미터: pageNo, numOfRows, dataType,
 year, month"""
-        return self.call_endpoint('aws_mtly_info_service_get_aws_stn_lst_tbl', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws_mtly_info_service_get_aws_stn_lst_tbl', params, use_sample=use_sample))
 
-    def aws_mtly_info_service_get_note(
+    async def aws_mtly_info_service_get_note(
         self,
         *,
         use_sample: bool = False,
@@ -7990,9 +7955,9 @@ year, month"""
 Path: /api/typ02/openApi/AwsMtlyInfoService/getNote
 파라미터:
 pageNo, numOfRows, dataType, year, month"""
-        return self.call_endpoint('aws_mtly_info_service_get_note', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws_mtly_info_service_get_note', params, use_sample=use_sample))
 
-    def alw_aws_aws_ww_pnt(
+    async def alw_aws_aws_ww_pnt(
         self,
         *,
         use_sample: bool = False,
@@ -8003,9 +7968,9 @@ pageNo, numOfRows, dataType, year, month"""
 Path: /api/typ03/php/alw/aws/aws_ww_pnt.php
 파라미터:
 obs, tm, val, stn, obj, map, grid, legend, size, itv, zoom_level, zoom_x, zoom_y, gov"""
-        return self.call_endpoint('alw_aws_aws_ww_pnt', params, use_sample=use_sample)
+        return (await self.call_endpoint('alw_aws_aws_ww_pnt', params, use_sample=use_sample))
 
-    def aws3_nph_aws_day_img1(
+    async def aws3_nph_aws_day_img1(
         self,
         *,
         use_sample: bool = False,
@@ -8016,9 +7981,9 @@ obs, tm, val, stn, obj, map, grid, legend, size, itv, zoom_level, zoom_x, zoom_y
 Path: /api/typ03/cgi/aws3/nph-aws_day_img1
 파라미터: obs, tm, val, stn,
 obj, map, grid, legend, size, zoom_level, zoom_x, zoom_y"""
-        return self.call_endpoint('aws3_nph_aws_day_img1', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws3_nph_aws_day_img1', params, use_sample=use_sample))
 
-    def aws3_nph_aws_min_img1(
+    async def aws3_nph_aws_min_img1(
         self,
         *,
         use_sample: bool = False,
@@ -8029,9 +7994,9 @@ obj, map, grid, legend, size, zoom_level, zoom_x, zoom_y"""
 Path: /api/typ03/cgi/aws3/nph-aws_min_img1
 파라미터: obs, tm, val, stn,
 obj, map, grid, legend, size, itv, zoom_level, zoom_x, zoom_y, gov, _DT"""
-        return self.call_endpoint('aws3_nph_aws_min_img1', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws3_nph_aws_min_img1', params, use_sample=use_sample))
 
-    def aws3_nph_aws_min_img2(
+    async def aws3_nph_aws_min_img2(
         self,
         *,
         use_sample: bool = False,
@@ -8042,9 +8007,9 @@ obj, map, grid, legend, size, itv, zoom_level, zoom_x, zoom_y, gov, _DT"""
 Path: /api/typ03/cgi/aws3/nph-aws_min_img2
 파라미터: obs, tm, val, stn,
 obj, ws_ms, map, grid, legend"""
-        return self.call_endpoint('aws3_nph_aws_min_img2', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws3_nph_aws_min_img2', params, use_sample=use_sample))
 
-    def alw_aws_aws_obs_pnt(
+    async def alw_aws_aws_obs_pnt(
         self,
         *,
         use_sample: bool = False,
@@ -8055,9 +8020,9 @@ obj, ws_ms, map, grid, legend"""
 Path: /api/typ03/php/alw/aws/aws_obs_pnt.php
 파라미터: obs, tm, val,
 stn, obj, map, grid, legend, size, itv"""
-        return self.call_endpoint('alw_aws_aws_obs_pnt', params, use_sample=use_sample)
+        return (await self.call_endpoint('alw_aws_aws_obs_pnt', params, use_sample=use_sample))
 
-    def alw_sea_sea_obs_pnt(
+    async def alw_sea_sea_obs_pnt(
         self,
         *,
         use_sample: bool = False,
@@ -8068,9 +8033,9 @@ stn, obj, map, grid, legend, size, itv"""
 Path: /api/typ03/php/alw/sea/sea_obs_pnt.php
 파라미터: obs, tm, val,
 stn, obj, map, grid, legend, size, itv, zoom_level, zoom_x, zoom_y, gov, _DT"""
-        return self.call_endpoint('alw_sea_sea_obs_pnt', params, use_sample=use_sample)
+        return (await self.call_endpoint('alw_sea_sea_obs_pnt', params, use_sample=use_sample))
 
-    def aws3_nph_awsm_tms_h06(
+    async def aws3_nph_awsm_tms_h06(
         self,
         *,
         use_sample: bool = False,
@@ -8081,9 +8046,9 @@ stn, obj, map, grid, legend, size, itv, zoom_level, zoom_x, zoom_y, gov, _DT"""
 Path: /api/typ03/cgi/aws3/nph-awsm_tms_h06
 파라미터: arg1,
 arg2, arg3, arg4, arg5, arg6, _DT"""
-        return self.call_endpoint('aws3_nph_awsm_tms_h06', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws3_nph_awsm_tms_h06', params, use_sample=use_sample))
 
-    def aws3_nph_awsm_tms_h12(
+    async def aws3_nph_awsm_tms_h12(
         self,
         *,
         use_sample: bool = False,
@@ -8094,9 +8059,9 @@ arg2, arg3, arg4, arg5, arg6, _DT"""
 Path: /api/typ03/cgi/aws3/nph-awsm_tms_h12
 파라미터: arg1,
 arg2, arg3, arg4, arg5, arg6, arg7, _DT"""
-        return self.call_endpoint('aws3_nph_awsm_tms_h12', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws3_nph_awsm_tms_h12', params, use_sample=use_sample))
 
-    def aws2_nph_awsm_tms_h24(
+    async def aws2_nph_awsm_tms_h24(
         self,
         *,
         use_sample: bool = False,
@@ -8107,9 +8072,9 @@ arg2, arg3, arg4, arg5, arg6, arg7, _DT"""
 Path: /api/typ03/cgi/aws2/nph-awsm_tms_h24
 파라미터: arg1,
 arg2, arg3, arg4, arg5, arg6"""
-        return self.call_endpoint('aws2_nph_awsm_tms_h24', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws2_nph_awsm_tms_h24', params, use_sample=use_sample))
 
-    def aws2_nph_awsm_tms_d02(
+    async def aws2_nph_awsm_tms_d02(
         self,
         *,
         use_sample: bool = False,
@@ -8120,9 +8085,9 @@ arg2, arg3, arg4, arg5, arg6"""
 Path: /api/typ03/cgi/aws2/nph-awsm_tms_d02
 파라미터: arg1,
 arg2, arg3, arg4, arg5, arg6, arg7"""
-        return self.call_endpoint('aws2_nph_awsm_tms_d02', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws2_nph_awsm_tms_d02', params, use_sample=use_sample))
 
-    def aws2_nph_awsm_tms_d04(
+    async def aws2_nph_awsm_tms_d04(
         self,
         *,
         use_sample: bool = False,
@@ -8133,9 +8098,9 @@ arg2, arg3, arg4, arg5, arg6, arg7"""
 Path: /api/typ03/cgi/aws2/nph-awsm_tms_d04
 파라미터: arg1,
 arg2, arg3, arg4, arg5, arg6"""
-        return self.call_endpoint('aws2_nph_awsm_tms_d04', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws2_nph_awsm_tms_d04', params, use_sample=use_sample))
 
-    def aws2_nph_awsm_tms_d08(
+    async def aws2_nph_awsm_tms_d08(
         self,
         *,
         use_sample: bool = False,
@@ -8146,9 +8111,9 @@ arg2, arg3, arg4, arg5, arg6"""
 Path: /api/typ03/cgi/aws2/nph-awsm_tms_d08
 파라미터: arg1,
 arg2, arg3, arg4, arg5, arg6"""
-        return self.call_endpoint('aws2_nph_awsm_tms_d08', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws2_nph_awsm_tms_d08', params, use_sample=use_sample))
 
-    def aws2_nph_awsm_tms_d12(
+    async def aws2_nph_awsm_tms_d12(
         self,
         *,
         use_sample: bool = False,
@@ -8159,9 +8124,9 @@ arg2, arg3, arg4, arg5, arg6"""
 Path: /api/typ03/cgi/aws2/nph-awsm_tms_d12
 파라미터: arg1,
 arg2, arg3, arg4, arg5, arg6"""
-        return self.call_endpoint('aws2_nph_awsm_tms_d12', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws2_nph_awsm_tms_d12', params, use_sample=use_sample))
 
-    def aws3_nph_aws_day_imgp1(
+    async def aws3_nph_aws_day_imgp1(
         self,
         *,
         use_sample: bool = False,
@@ -8172,9 +8137,9 @@ arg2, arg3, arg4, arg5, arg6"""
 Path: /api/typ03/cgi/aws3/nph-aws_day_imgp1
 파라미터: PROJ, map, grid, itv, dataDtlCd, obs, stn, size, STARTX, STARTY, ENDX, ENDY,
 ZOOMLVL, selWs, tm, tm_st, tm_ed, tm2"""
-        return self.call_endpoint('aws3_nph_aws_day_imgp1', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws3_nph_aws_day_imgp1', params, use_sample=use_sample))
 
-    def aws3_nph_aws_min_imgp1(
+    async def aws3_nph_aws_min_imgp1(
         self,
         *,
         use_sample: bool = False,
@@ -8185,9 +8150,9 @@ ZOOMLVL, selWs, tm, tm_st, tm_ed, tm2"""
 Path: /api/typ03/cgi/aws3/nph-aws_min_imgp1
 파라미터: PROJ, map, grid, itv, dataDtlCd, obs, stn, size, STARTX, STARTY, ENDX, ENDY,
 ZOOMLVL, selWs, tm, tm_st, tm_ed, tm2"""
-        return self.call_endpoint('aws3_nph_aws_min_imgp1', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws3_nph_aws_min_imgp1', params, use_sample=use_sample))
 
-    def aws3_nph_aws_min_imgp2(
+    async def aws3_nph_aws_min_imgp2(
         self,
         *,
         use_sample: bool = False,
@@ -8198,9 +8163,9 @@ ZOOMLVL, selWs, tm, tm_st, tm_ed, tm2"""
 Path: /api/typ03/cgi/aws3/nph-aws_min_imgp2
 파라미터: PROJ, map, grid, itv, dataDtlCd, obs, stn, size, STARTX, STARTY, ENDX, ENDY,
 ZOOMLVL, selWs, tm, tm_st, tm_ed, tm2"""
-        return self.call_endpoint('aws3_nph_aws_min_imgp2', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws3_nph_aws_min_imgp2', params, use_sample=use_sample))
 
-    def sts_ta(
+    async def sts_ta(
         self,
         *,
         use_sample: bool = False,
@@ -8211,9 +8176,9 @@ ZOOMLVL, selWs, tm, tm_st, tm_ed, tm2"""
 Path: /api/typ01/url/sts_ta.php
 파라미터:
 tm1, tm2, stn_id, help, disp"""
-        return self.call_endpoint('sts_ta', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_ta', params, use_sample=use_sample))
 
-    def sts_ta_2(
+    async def sts_ta_2(
         self,
         *,
         use_sample: bool = False,
@@ -8224,9 +8189,9 @@ tm1, tm2, stn_id, help, disp"""
 Path:
 /api/typ01/url/sts_ta.php
 파라미터: tm1, tm2, lat, lon, help, disp"""
-        return self.call_endpoint('sts_ta_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_ta_2', params, use_sample=use_sample))
 
-    def sts_si(
+    async def sts_si(
         self,
         *,
         use_sample: bool = False,
@@ -8237,9 +8202,9 @@ Path:
 Path: /api/typ01/url/sts_si.php
 파라미터:
 tm1, tm2, stn_id, help, disp"""
-        return self.call_endpoint('sts_si', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_si', params, use_sample=use_sample))
 
-    def sts_si_2(
+    async def sts_si_2(
         self,
         *,
         use_sample: bool = False,
@@ -8250,9 +8215,9 @@ tm1, tm2, stn_id, help, disp"""
 Path:
 /api/typ01/url/sts_si.php
 파라미터: tm1, tm2, lat, lon, help, disp"""
-        return self.call_endpoint('sts_si_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_si_2', params, use_sample=use_sample))
 
-    def sts_ss(
+    async def sts_ss(
         self,
         *,
         use_sample: bool = False,
@@ -8263,9 +8228,9 @@ Path:
 Path: /api/typ01/url/sts_ss.php
 파라미터:
 tm1, tm2, stn_id, help, disp"""
-        return self.call_endpoint('sts_ss', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_ss', params, use_sample=use_sample))
 
-    def sts_ss_2(
+    async def sts_ss_2(
         self,
         *,
         use_sample: bool = False,
@@ -8276,9 +8241,9 @@ tm1, tm2, stn_id, help, disp"""
 Path:
 /api/typ01/url/sts_ss.php
 파라미터: tm1, tm2, lat, lon, help, disp"""
-        return self.call_endpoint('sts_ss_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_ss_2', params, use_sample=use_sample))
 
-    def sts_pa(
+    async def sts_pa(
         self,
         *,
         use_sample: bool = False,
@@ -8289,9 +8254,9 @@ Path:
 Path: /api/typ01/url/sts_pa.php
 파라미터:
 tm1, tm2, stn_id, help, disp"""
-        return self.call_endpoint('sts_pa', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_pa', params, use_sample=use_sample))
 
-    def sts_pa_2(
+    async def sts_pa_2(
         self,
         *,
         use_sample: bool = False,
@@ -8302,9 +8267,9 @@ tm1, tm2, stn_id, help, disp"""
 Path:
 /api/typ01/url/sts_pa.php
 파라미터: tm1, tm2, lat, lon, help, disp"""
-        return self.call_endpoint('sts_pa_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_pa_2', params, use_sample=use_sample))
 
-    def sts_wind(
+    async def sts_wind(
         self,
         *,
         use_sample: bool = False,
@@ -8314,9 +8279,9 @@ Path:
 
 Path: /api/typ01/url/sts_wind.php
 파라미터: tm1, tm2, stn_id, help, disp"""
-        return self.call_endpoint('sts_wind', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_wind', params, use_sample=use_sample))
 
-    def sts_wind_2(
+    async def sts_wind_2(
         self,
         *,
         use_sample: bool = False,
@@ -8327,9 +8292,9 @@ Path: /api/typ01/url/sts_wind.php
 Path:
 /api/typ01/url/sts_wind.php
 파라미터: tm1, tm2, lat, lon, help, disp"""
-        return self.call_endpoint('sts_wind_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_wind_2', params, use_sample=use_sample))
 
-    def sts_td(
+    async def sts_td(
         self,
         *,
         use_sample: bool = False,
@@ -8339,9 +8304,9 @@ Path:
 
 Path: /api/typ01/url/sts_td.php
 파라미터: tm1, tm2, stn_id, help, disp"""
-        return self.call_endpoint('sts_td', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_td', params, use_sample=use_sample))
 
-    def sts_td_2(
+    async def sts_td_2(
         self,
         *,
         use_sample: bool = False,
@@ -8352,9 +8317,9 @@ Path: /api/typ01/url/sts_td.php
 Path:
 /api/typ01/url/sts_td.php
 파라미터: tm1, tm2, lat, lon, help, disp"""
-        return self.call_endpoint('sts_td_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_td_2', params, use_sample=use_sample))
 
-    def sts_ts(
+    async def sts_ts(
         self,
         *,
         use_sample: bool = False,
@@ -8364,9 +8329,9 @@ Path:
 
 Path: /api/typ01/url/sts_ts.php
 파라미터: tm1, tm2, stn_id, help, disp"""
-        return self.call_endpoint('sts_ts', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_ts', params, use_sample=use_sample))
 
-    def sts_ts_2(
+    async def sts_ts_2(
         self,
         *,
         use_sample: bool = False,
@@ -8377,9 +8342,9 @@ Path: /api/typ01/url/sts_ts.php
 Path:
 /api/typ01/url/sts_ts.php
 파라미터: tm1, tm2, lat, lon, help, disp"""
-        return self.call_endpoint('sts_ts_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_ts_2', params, use_sample=use_sample))
 
-    def sts_tg(
+    async def sts_tg(
         self,
         *,
         use_sample: bool = False,
@@ -8389,9 +8354,9 @@ Path:
 
 Path: /api/typ01/url/sts_tg.php
 파라미터: tm1, tm2, stn_id, help, disp"""
-        return self.call_endpoint('sts_tg', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_tg', params, use_sample=use_sample))
 
-    def sts_tg_2(
+    async def sts_tg_2(
         self,
         *,
         use_sample: bool = False,
@@ -8402,9 +8367,9 @@ Path: /api/typ01/url/sts_tg.php
 Path:
 /api/typ01/url/sts_tg.php
 파라미터: tm1, tm2, lat, lon, help, disp"""
-        return self.call_endpoint('sts_tg_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_tg_2', params, use_sample=use_sample))
 
-    def sts_te(
+    async def sts_te(
         self,
         *,
         use_sample: bool = False,
@@ -8414,9 +8379,9 @@ Path:
 
 Path: /api/typ01/url/sts_te.php
 파라미터: tm1, tm2, stn_id, help, disp"""
-        return self.call_endpoint('sts_te', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_te', params, use_sample=use_sample))
 
-    def sts_te_2(
+    async def sts_te_2(
         self,
         *,
         use_sample: bool = False,
@@ -8427,9 +8392,9 @@ Path: /api/typ01/url/sts_te.php
 Path:
 /api/typ01/url/sts_te.php
 파라미터: tm1, tm2, lat, lon, help, disp"""
-        return self.call_endpoint('sts_te_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_te_2', params, use_sample=use_sample))
 
-    def sts_rhm(
+    async def sts_rhm(
         self,
         *,
         use_sample: bool = False,
@@ -8439,9 +8404,9 @@ Path:
 
 Path: /api/typ01/url/sts_rhm.php
 파라미터: tm1, tm2, stn_id, help, disp"""
-        return self.call_endpoint('sts_rhm', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_rhm', params, use_sample=use_sample))
 
-    def sts_rhm_2(
+    async def sts_rhm_2(
         self,
         *,
         use_sample: bool = False,
@@ -8452,9 +8417,9 @@ Path: /api/typ01/url/sts_rhm.php
 Path:
 /api/typ01/url/sts_rhm.php
 파라미터: tm1, tm2, lat, lon, help, disp"""
-        return self.call_endpoint('sts_rhm_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_rhm_2', params, use_sample=use_sample))
 
-    def sts_pv(
+    async def sts_pv(
         self,
         *,
         use_sample: bool = False,
@@ -8464,9 +8429,9 @@ Path:
 
 Path: /api/typ01/url/sts_pv.php
 파라미터: tm1, tm2, stn_id, help, disp"""
-        return self.call_endpoint('sts_pv', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_pv', params, use_sample=use_sample))
 
-    def sts_pv_2(
+    async def sts_pv_2(
         self,
         *,
         use_sample: bool = False,
@@ -8477,9 +8442,9 @@ Path: /api/typ01/url/sts_pv.php
 Path:
 /api/typ01/url/sts_pv.php
 파라미터: tm1, tm2, lat, lon, help, disp"""
-        return self.call_endpoint('sts_pv_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_pv_2', params, use_sample=use_sample))
 
-    def sts_cloud(
+    async def sts_cloud(
         self,
         *,
         use_sample: bool = False,
@@ -8489,9 +8454,9 @@ Path:
 
 Path: /api/typ01/url/sts_cloud.php
 파라미터: tm1, tm2, stn_id, help, disp"""
-        return self.call_endpoint('sts_cloud', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_cloud', params, use_sample=use_sample))
 
-    def sts_cloud_2(
+    async def sts_cloud_2(
         self,
         *,
         use_sample: bool = False,
@@ -8502,9 +8467,9 @@ Path: /api/typ01/url/sts_cloud.php
 Path:
 /api/typ01/url/sts_cloud.php
 파라미터: tm1, tm2, lat, lon, help, disp"""
-        return self.call_endpoint('sts_cloud_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_cloud_2', params, use_sample=use_sample))
 
-    def sts_vs(
+    async def sts_vs(
         self,
         *,
         use_sample: bool = False,
@@ -8514,9 +8479,9 @@ Path:
 
 Path: /api/typ01/url/sts_vs.php
 파라미터: tm1, tm2, stn_id, help, disp"""
-        return self.call_endpoint('sts_vs', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_vs', params, use_sample=use_sample))
 
-    def sts_vs_2(
+    async def sts_vs_2(
         self,
         *,
         use_sample: bool = False,
@@ -8527,9 +8492,9 @@ Path: /api/typ01/url/sts_vs.php
 Path:
 /api/typ01/url/sts_vs.php
 파라미터: tm1, tm2, lat, lon, help, disp"""
-        return self.call_endpoint('sts_vs_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_vs_2', params, use_sample=use_sample))
 
-    def sts_rn(
+    async def sts_rn(
         self,
         *,
         use_sample: bool = False,
@@ -8539,9 +8504,9 @@ Path:
 
 Path: /api/typ01/url/sts_rn.php
 파라미터: tm1, tm2, stn_id, help, disp"""
-        return self.call_endpoint('sts_rn', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_rn', params, use_sample=use_sample))
 
-    def sts_rn_2(
+    async def sts_rn_2(
         self,
         *,
         use_sample: bool = False,
@@ -8552,9 +8517,9 @@ Path: /api/typ01/url/sts_rn.php
 Path:
 /api/typ01/url/sts_rn.php
 파라미터: tm1, tm2, lat, lon, help, disp"""
-        return self.call_endpoint('sts_rn_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_rn_2', params, use_sample=use_sample))
 
-    def sts_sd(
+    async def sts_sd(
         self,
         *,
         use_sample: bool = False,
@@ -8564,9 +8529,9 @@ Path:
 
 Path: /api/typ01/url/sts_sd.php
 파라미터: tm1, tm2, stn_id, help, disp"""
-        return self.call_endpoint('sts_sd', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_sd', params, use_sample=use_sample))
 
-    def sts_sd_2(
+    async def sts_sd_2(
         self,
         *,
         use_sample: bool = False,
@@ -8577,9 +8542,9 @@ Path: /api/typ01/url/sts_sd.php
 Path:
 /api/typ01/url/sts_sd.php
 파라미터: tm1, tm2, lat, lon, help, disp"""
-        return self.call_endpoint('sts_sd_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_sd_2', params, use_sample=use_sample))
 
-    def sts_ev(
+    async def sts_ev(
         self,
         *,
         use_sample: bool = False,
@@ -8589,9 +8554,9 @@ Path:
 
 Path: /api/typ01/url/sts_ev.php
 파라미터: tm1, tm2, stn_id, help, disp"""
-        return self.call_endpoint('sts_ev', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_ev', params, use_sample=use_sample))
 
-    def sts_ev_2(
+    async def sts_ev_2(
         self,
         *,
         use_sample: bool = False,
@@ -8602,9 +8567,9 @@ Path: /api/typ01/url/sts_ev.php
 Path:
 /api/typ01/url/sts_ev.php
 파라미터: tm1, tm2, lat, lon, help, disp"""
-        return self.call_endpoint('sts_ev_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_ev_2', params, use_sample=use_sample))
 
-    def sts_ydst(
+    async def sts_ydst(
         self,
         *,
         use_sample: bool = False,
@@ -8614,9 +8579,9 @@ Path:
 
 Path: /api/typ01/url/sts_ydst.php
 파라미터: tm1, tm2, stn_id, help, disp"""
-        return self.call_endpoint('sts_ydst', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_ydst', params, use_sample=use_sample))
 
-    def sts_ydst_2(
+    async def sts_ydst_2(
         self,
         *,
         use_sample: bool = False,
@@ -8627,9 +8592,9 @@ Path: /api/typ01/url/sts_ydst.php
 Path:
 /api/typ01/url/sts_ydst.php
 파라미터: tm1, tm2, lat, lon, help, disp"""
-        return self.call_endpoint('sts_ydst_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_ydst_2', params, use_sample=use_sample))
 
-    def sts_fog(
+    async def sts_fog(
         self,
         *,
         use_sample: bool = False,
@@ -8639,9 +8604,9 @@ Path:
 
 Path: /api/typ01/url/sts_fog.php
 파라미터: tm1, tm2, stn_id, help, disp"""
-        return self.call_endpoint('sts_fog', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_fog', params, use_sample=use_sample))
 
-    def sts_fog_2(
+    async def sts_fog_2(
         self,
         *,
         use_sample: bool = False,
@@ -8652,9 +8617,9 @@ Path: /api/typ01/url/sts_fog.php
 Path:
 /api/typ01/url/sts_fog.php
 파라미터: tm1, tm2, lat, lon, help, disp"""
-        return self.call_endpoint('sts_fog_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sts_fog_2', params, use_sample=use_sample))
 
-    def nko_sfctm(
+    async def nko_sfctm(
         self,
         *,
         use_sample: bool = False,
@@ -8664,9 +8629,9 @@ Path:
 
 Path: /api/typ01/url/nko_sfctm.php
 파라미터: tm, stn, help"""
-        return self.call_endpoint('nko_sfctm', params, use_sample=use_sample)
+        return (await self.call_endpoint('nko_sfctm', params, use_sample=use_sample))
 
-    def sfc_nko_norm1(
+    async def sfc_nko_norm1(
         self,
         *,
         use_sample: bool = False,
@@ -8677,9 +8642,9 @@ Path: /api/typ01/url/nko_sfctm.php
 Path: /api/typ01/url/sfc_nko_norm1.php
 파라미터: norm, tmst, stn, MM1, DD1,
 MM2, DD2"""
-        return self.call_endpoint('sfc_nko_norm1', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_nko_norm1', params, use_sample=use_sample))
 
-    def kma_pm10(
+    async def kma_pm10(
         self,
         *,
         use_sample: bool = False,
@@ -8689,9 +8654,9 @@ MM2, DD2"""
 
 Path: /api/typ01/url/kma_pm10.php
 파라미터: tm1, tm2"""
-        return self.call_endpoint('kma_pm10', params, use_sample=use_sample)
+        return (await self.call_endpoint('kma_pm10', params, use_sample=use_sample))
 
-    def stn_pm10_inf(
+    async def stn_pm10_inf(
         self,
         *,
         use_sample: bool = False,
@@ -8702,9 +8667,9 @@ Path: /api/typ01/url/kma_pm10.php
 Path: /api/typ01/url/stn_pm10_inf.php
 파라미터: inf, stn, tm,
 help"""
-        return self.call_endpoint('stn_pm10_inf', params, use_sample=use_sample)
+        return (await self.call_endpoint('stn_pm10_inf', params, use_sample=use_sample))
 
-    def dst_pm10_tm(
+    async def dst_pm10_tm(
         self,
         *,
         use_sample: bool = False,
@@ -8715,9 +8680,9 @@ help"""
 Path: /api/typ01/url/dst_pm10_tm.php
 파라미터: tm, org,
 stn, data, mode, help"""
-        return self.call_endpoint('dst_pm10_tm', params, use_sample=use_sample)
+        return (await self.call_endpoint('dst_pm10_tm', params, use_sample=use_sample))
 
-    def dst_pm10_tm_2(
+    async def dst_pm10_tm_2(
         self,
         *,
         use_sample: bool = False,
@@ -8727,9 +8692,9 @@ stn, data, mode, help"""
 
 Path: /api/typ01/url/dst_pm10_tm.php
 파라미터: tm, org"""
-        return self.call_endpoint('dst_pm10_tm_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('dst_pm10_tm_2', params, use_sample=use_sample))
 
-    def dst_pm10_hr(
+    async def dst_pm10_hr(
         self,
         *,
         use_sample: bool = False,
@@ -8740,9 +8705,9 @@ Path: /api/typ01/url/dst_pm10_tm.php
 Path: /api/typ01/url/dst_pm10_hr.php
 파라미터: tm, org,
 stn, mode, help"""
-        return self.call_endpoint('dst_pm10_hr', params, use_sample=use_sample)
+        return (await self.call_endpoint('dst_pm10_hr', params, use_sample=use_sample))
 
-    def dst_pm10_hr_2(
+    async def dst_pm10_hr_2(
         self,
         *,
         use_sample: bool = False,
@@ -8752,9 +8717,9 @@ stn, mode, help"""
 
 Path: /api/typ01/url/dst_pm10_hr.php
 파라미터: tm, org"""
-        return self.call_endpoint('dst_pm10_hr_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('dst_pm10_hr_2', params, use_sample=use_sample))
 
-    def ydst_info_service_get_ydst_satlit_img(
+    async def ydst_info_service_get_ydst_satlit_img(
         self,
         *,
         use_sample: bool = False,
@@ -8766,9 +8731,9 @@ Path:
 /api/typ02/openApi/YdstInfoService/getYdstSatlitImg
 파라미터: pageNo, numOfRows, dataType,
 time"""
-        return self.call_endpoint('ydst_info_service_get_ydst_satlit_img', params, use_sample=use_sample)
+        return (await self.call_endpoint('ydst_info_service_get_ydst_satlit_img', params, use_sample=use_sample))
 
-    def ydst_info_service_get_ydst_obs(
+    async def ydst_info_service_get_ydst_obs(
         self,
         *,
         use_sample: bool = False,
@@ -8779,9 +8744,9 @@ time"""
 Path:
 /api/typ02/openApi/YdstInfoService/getYdstObs
 파라미터: pageNo, numOfRows, dataType"""
-        return self.call_endpoint('ydst_info_service_get_ydst_obs', params, use_sample=use_sample)
+        return (await self.call_endpoint('ydst_info_service_get_ydst_obs', params, use_sample=use_sample))
 
-    def ydst_info_service_get_ydst_sfc_chart(
+    async def ydst_info_service_get_ydst_sfc_chart(
         self,
         *,
         use_sample: bool = False,
@@ -8793,9 +8758,9 @@ Path:
 /api/typ02/openApi/YdstInfoService/getYdstSfcChart
 파라미터: pageNo, numOfRows, dataType,
 time"""
-        return self.call_endpoint('ydst_info_service_get_ydst_sfc_chart', params, use_sample=use_sample)
+        return (await self.call_endpoint('ydst_info_service_get_ydst_sfc_chart', params, use_sample=use_sample))
 
-    def stn_snow(
+    async def stn_snow(
         self,
         *,
         use_sample: bool = False,
@@ -8805,9 +8770,9 @@ time"""
 
 Path: /api/typ01/url/stn_snow.php
 파라미터: stn, tm, mode, help"""
-        return self.call_endpoint('stn_snow', params, use_sample=use_sample)
+        return (await self.call_endpoint('stn_snow', params, use_sample=use_sample))
 
-    def kma_snow1(
+    async def kma_snow1(
         self,
         *,
         use_sample: bool = False,
@@ -8817,9 +8782,9 @@ Path: /api/typ01/url/stn_snow.php
 
 Path: /api/typ01/url/kma_snow1.php
 파라미터: sd, tm, help"""
-        return self.call_endpoint('kma_snow1', params, use_sample=use_sample)
+        return (await self.call_endpoint('kma_snow1', params, use_sample=use_sample))
 
-    def kma_snow2(
+    async def kma_snow2(
         self,
         *,
         use_sample: bool = False,
@@ -8829,9 +8794,9 @@ Path: /api/typ01/url/kma_snow1.php
 
 Path: /api/typ01/url/kma_snow2.php
 파라미터: tm, tm_st, snow, help"""
-        return self.call_endpoint('kma_snow2', params, use_sample=use_sample)
+        return (await self.call_endpoint('kma_snow2', params, use_sample=use_sample))
 
-    def kma_snow_day(
+    async def kma_snow_day(
         self,
         *,
         use_sample: bool = False,
@@ -8842,9 +8807,9 @@ Path: /api/typ01/url/kma_snow2.php
 Path: /api/typ01/url/kma_snow_day.php
 파라미터: sd, tm,
 tm_st, stn, snow, help"""
-        return self.call_endpoint('kma_snow_day', params, use_sample=use_sample)
+        return (await self.call_endpoint('kma_snow_day', params, use_sample=use_sample))
 
-    def kma_snow_day_2(
+    async def kma_snow_day_2(
         self,
         *,
         use_sample: bool = False,
@@ -8855,9 +8820,9 @@ tm_st, stn, snow, help"""
 Path: /api/typ01/url/kma_snow_day.php
 파라미터: sd, tm, tm_st,
 help"""
-        return self.call_endpoint('kma_snow_day_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('kma_snow_day_2', params, use_sample=use_sample))
 
-    def kma_sfctm_uv(
+    async def kma_sfctm_uv(
         self,
         *,
         use_sample: bool = False,
@@ -8867,9 +8832,9 @@ help"""
 
 Path: /api/typ01/url/kma_sfctm_uv.php
 파라미터: tm, stn, help"""
-        return self.call_endpoint('kma_sfctm_uv', params, use_sample=use_sample)
+        return (await self.call_endpoint('kma_sfctm_uv', params, use_sample=use_sample))
 
-    def aws_nph_aws_min_obj(
+    async def aws_nph_aws_min_obj(
         self,
         *,
         use_sample: bool = False,
@@ -8880,9 +8845,9 @@ Path: /api/typ01/url/kma_sfctm_uv.php
 Path: /api/typ01/cgi-bin/aws/nph-aws_min_obj
 파라미터: obs, tm, obj,
 map, grid, stn, gov"""
-        return self.call_endpoint('aws_nph_aws_min_obj', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws_nph_aws_min_obj', params, use_sample=use_sample))
 
-    def aws_nph_sfc_obs_img(
+    async def aws_nph_sfc_obs_img(
         self,
         *,
         use_sample: bool = False,
@@ -8893,9 +8858,9 @@ map, grid, stn, gov"""
 Path: /api/typ01/cgi-bin/aws/nph-sfc_obs_img
 파라미터: tm, obs, acc,
 val, stn, obj, map, xp, yp, lon, lat, zoom, size, legend, lonlat, typ, wv, gov"""
-        return self.call_endpoint('aws_nph_sfc_obs_img', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws_nph_sfc_obs_img', params, use_sample=use_sample))
 
-    def sfc_ssn(
+    async def sfc_ssn(
         self,
         *,
         use_sample: bool = False,
@@ -8906,9 +8871,9 @@ val, stn, obj, map, xp, yp, lon, lat, zoom, size, legend, lonlat, typ, wv, gov""
 Path: /api/typ01/url/sfc_ssn.php
 파라미터: stn, tm1,
 tm2"""
-        return self.call_endpoint('sfc_ssn', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_ssn', params, use_sample=use_sample))
 
-    def sfc_ssn_2(
+    async def sfc_ssn_2(
         self,
         *,
         use_sample: bool = False,
@@ -8919,9 +8884,9 @@ tm2"""
 Path: /api/typ01/url/sfc_ssn.php
 파라미터: stn, tm1,
 tm2, ssn"""
-        return self.call_endpoint('sfc_ssn_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_ssn_2', params, use_sample=use_sample))
 
-    def sfc_ssn_norm(
+    async def sfc_ssn_norm(
         self,
         *,
         use_sample: bool = False,
@@ -8932,9 +8897,9 @@ tm2, ssn"""
 Path: /api/typ01/url/sfc_ssn_norm.php
 파라미터: tmst,
 stn, MM1, DD1, MM2, DD2"""
-        return self.call_endpoint('sfc_ssn_norm', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_ssn_norm', params, use_sample=use_sample))
 
-    def sfc_ssn_norm_2(
+    async def sfc_ssn_norm_2(
         self,
         *,
         use_sample: bool = False,
@@ -8945,9 +8910,9 @@ stn, MM1, DD1, MM2, DD2"""
 Path: /api/typ01/url/sfc_ssn_norm.php
 파라미터: stn,
 MM1, DD1, MM2, DD2, ssn"""
-        return self.call_endpoint('sfc_ssn_norm_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_ssn_norm_2', params, use_sample=use_sample))
 
-    def stn_inf(
+    async def stn_inf(
         self,
         *,
         use_sample: bool = False,
@@ -8957,9 +8922,9 @@ MM1, DD1, MM2, DD2, ssn"""
 
 Path: /api/typ01/url/stn_inf.php
 파라미터: inf, stn, tm, help"""
-        return self.call_endpoint('stn_inf', params, use_sample=use_sample)
+        return (await self.call_endpoint('stn_inf', params, use_sample=use_sample))
 
-    def sea_obs(
+    async def sea_obs(
         self,
         *,
         use_sample: bool = False,
@@ -8969,9 +8934,9 @@ Path: /api/typ01/url/stn_inf.php
 
 Path: /api/typ01/url/sea_obs.php
 파라미터: tm, stn, help"""
-        return self.call_endpoint('sea_obs', params, use_sample=use_sample)
+        return (await self.call_endpoint('sea_obs', params, use_sample=use_sample))
 
-    def kma_buoy2(
+    async def kma_buoy2(
         self,
         *,
         use_sample: bool = False,
@@ -8982,9 +8947,9 @@ Path: /api/typ01/url/sea_obs.php
 Path: /api/typ01/url/kma_buoy2.php
 파라미터: tm1, tm2,
 stn, help"""
-        return self.call_endpoint('kma_buoy2', params, use_sample=use_sample)
+        return (await self.call_endpoint('kma_buoy2', params, use_sample=use_sample))
 
-    def kma_buoy(
+    async def kma_buoy(
         self,
         *,
         use_sample: bool = False,
@@ -8994,9 +8959,9 @@ stn, help"""
 
 Path: /api/typ01/url/kma_buoy.php
 파라미터: tm, stn, help"""
-        return self.call_endpoint('kma_buoy', params, use_sample=use_sample)
+        return (await self.call_endpoint('kma_buoy', params, use_sample=use_sample))
 
-    def sea_mtly_info_service_get_note(
+    async def sea_mtly_info_service_get_note(
         self,
         *,
         use_sample: bool = False,
@@ -9007,9 +8972,9 @@ Path: /api/typ01/url/kma_buoy.php
 Path: /api/typ02/openApi/SeaMtlyInfoService/getNote
 파라미터:
 pageNo, numOfRows, dataType, year, month"""
-        return self.call_endpoint('sea_mtly_info_service_get_note', params, use_sample=use_sample)
+        return (await self.call_endpoint('sea_mtly_info_service_get_note', params, use_sample=use_sample))
 
-    def sea_mtly_info_service_get_buoy_lst_tbl(
+    async def sea_mtly_info_service_get_buoy_lst_tbl(
         self,
         *,
         use_sample: bool = False,
@@ -9021,9 +8986,9 @@ Path:
 /api/typ02/openApi/SeaMtlyInfoService/getBuoyLstTbl
 파라미터: pageNo, numOfRows, dataType,
 year, month"""
-        return self.call_endpoint('sea_mtly_info_service_get_buoy_lst_tbl', params, use_sample=use_sample)
+        return (await self.call_endpoint('sea_mtly_info_service_get_buoy_lst_tbl', params, use_sample=use_sample))
 
-    def sea_mtly_info_service_get_lhaws_lst_tbl(
+    async def sea_mtly_info_service_get_lhaws_lst_tbl(
         self,
         *,
         use_sample: bool = False,
@@ -9035,9 +9000,9 @@ Path:
 /api/typ02/openApi/SeaMtlyInfoService/getLhawsLstTbl
 파라미터: pageNo, numOfRows, dataType,
 year, month"""
-        return self.call_endpoint('sea_mtly_info_service_get_lhaws_lst_tbl', params, use_sample=use_sample)
+        return (await self.call_endpoint('sea_mtly_info_service_get_lhaws_lst_tbl', params, use_sample=use_sample))
 
-    def sea_mtly_info_service_get_wave_buoy_lst_tbl(
+    async def sea_mtly_info_service_get_wave_buoy_lst_tbl(
         self,
         *,
         use_sample: bool = False,
@@ -9049,9 +9014,9 @@ Path:
 /api/typ02/openApi/SeaMtlyInfoService/getWaveBuoyLstTbl
 파라미터: pageNo, numOfRows,
 dataType, year, month"""
-        return self.call_endpoint('sea_mtly_info_service_get_wave_buoy_lst_tbl', params, use_sample=use_sample)
+        return (await self.call_endpoint('sea_mtly_info_service_get_wave_buoy_lst_tbl', params, use_sample=use_sample))
 
-    def sea_mtly_info_service_get_obs_open_year(
+    async def sea_mtly_info_service_get_obs_open_year(
         self,
         *,
         use_sample: bool = False,
@@ -9061,9 +9026,9 @@ dataType, year, month"""
 
 Path: /api/typ02/openApi/SeaMtlyInfoService/getObsOpenYear
 파라미터: pageNo, numOfRows, dataType, year, month"""
-        return self.call_endpoint('sea_mtly_info_service_get_obs_open_year', params, use_sample=use_sample)
+        return (await self.call_endpoint('sea_mtly_info_service_get_obs_open_year', params, use_sample=use_sample))
 
-    def sea_mtly_info_service_get_buoy_mm_sumry(
+    async def sea_mtly_info_service_get_buoy_mm_sumry(
         self,
         *,
         use_sample: bool = False,
@@ -9075,9 +9040,9 @@ Path:
 /api/typ02/openApi/SeaMtlyInfoService/getBuoyMmSumry
 파라미터: pageNo, numOfRows, dataType,
 year, month"""
-        return self.call_endpoint('sea_mtly_info_service_get_buoy_mm_sumry', params, use_sample=use_sample)
+        return (await self.call_endpoint('sea_mtly_info_service_get_buoy_mm_sumry', params, use_sample=use_sample))
 
-    def sea_mtly_info_service_get_buoy_mm_sumry2(
+    async def sea_mtly_info_service_get_buoy_mm_sumry2(
         self,
         *,
         use_sample: bool = False,
@@ -9089,9 +9054,9 @@ Path:
 /api/typ02/openApi/SeaMtlyInfoService/getBuoyMmSumry2
 파라미터: pageNo, numOfRows, dataType,
 year, month"""
-        return self.call_endpoint('sea_mtly_info_service_get_buoy_mm_sumry2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sea_mtly_info_service_get_buoy_mm_sumry2', params, use_sample=use_sample))
 
-    def sea_mtly_info_service_get_daily_buoy(
+    async def sea_mtly_info_service_get_daily_buoy(
         self,
         *,
         use_sample: bool = False,
@@ -9103,9 +9068,9 @@ Path:
 /api/typ02/openApi/SeaMtlyInfoService/getDailyBuoy
 파라미터: pageNo, numOfRows, dataType,
 year, month, station"""
-        return self.call_endpoint('sea_mtly_info_service_get_daily_buoy', params, use_sample=use_sample)
+        return (await self.call_endpoint('sea_mtly_info_service_get_daily_buoy', params, use_sample=use_sample))
 
-    def sea_mtly_info_service_get_lhaws_mm_sumry(
+    async def sea_mtly_info_service_get_lhaws_mm_sumry(
         self,
         *,
         use_sample: bool = False,
@@ -9117,9 +9082,9 @@ Path:
 /api/typ02/openApi/SeaMtlyInfoService/getLhawsMmSumry
 파라미터: pageNo, numOfRows, dataType,
 year, month"""
-        return self.call_endpoint('sea_mtly_info_service_get_lhaws_mm_sumry', params, use_sample=use_sample)
+        return (await self.call_endpoint('sea_mtly_info_service_get_lhaws_mm_sumry', params, use_sample=use_sample))
 
-    def sea_mtly_info_service_get_lhaws_mm_sumry2(
+    async def sea_mtly_info_service_get_lhaws_mm_sumry2(
         self,
         *,
         use_sample: bool = False,
@@ -9131,9 +9096,9 @@ Path:
 /api/typ02/openApi/SeaMtlyInfoService/getLhawsMmSumry2
 파라미터: pageNo, numOfRows,
 dataType, year, month"""
-        return self.call_endpoint('sea_mtly_info_service_get_lhaws_mm_sumry2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sea_mtly_info_service_get_lhaws_mm_sumry2', params, use_sample=use_sample))
 
-    def sea_mtly_info_service_get_daily_lhaws(
+    async def sea_mtly_info_service_get_daily_lhaws(
         self,
         *,
         use_sample: bool = False,
@@ -9145,9 +9110,9 @@ Path:
 /api/typ02/openApi/SeaMtlyInfoService/getDailyLhaws
 파라미터: pageNo, numOfRows, dataType,
 year, month, station"""
-        return self.call_endpoint('sea_mtly_info_service_get_daily_lhaws', params, use_sample=use_sample)
+        return (await self.call_endpoint('sea_mtly_info_service_get_daily_lhaws', params, use_sample=use_sample))
 
-    def sea_mtly_info_service_get_wave_buoy_mm_sumry(
+    async def sea_mtly_info_service_get_wave_buoy_mm_sumry(
         self,
         *,
         use_sample: bool = False,
@@ -9159,9 +9124,9 @@ Path:
 /api/typ02/openApi/SeaMtlyInfoService/getWaveBuoyMmSumry
 파라미터: pageNo, numOfRows,
 dataType, year, month"""
-        return self.call_endpoint('sea_mtly_info_service_get_wave_buoy_mm_sumry', params, use_sample=use_sample)
+        return (await self.call_endpoint('sea_mtly_info_service_get_wave_buoy_mm_sumry', params, use_sample=use_sample))
 
-    def sea_mtly_info_service_get_wave_buoy_mm_sumry2(
+    async def sea_mtly_info_service_get_wave_buoy_mm_sumry2(
         self,
         *,
         use_sample: bool = False,
@@ -9173,9 +9138,9 @@ Path:
 /api/typ02/openApi/SeaMtlyInfoService/getWaveBuoyMmSumry2
 파라미터: pageNo, numOfRows,
 dataType, year, month"""
-        return self.call_endpoint('sea_mtly_info_service_get_wave_buoy_mm_sumry2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sea_mtly_info_service_get_wave_buoy_mm_sumry2', params, use_sample=use_sample))
 
-    def sea_mtly_info_service_get_daily_wave_buoy(
+    async def sea_mtly_info_service_get_daily_wave_buoy(
         self,
         *,
         use_sample: bool = False,
@@ -9187,9 +9152,9 @@ Path:
 /api/typ02/openApi/SeaMtlyInfoService/getDailyWaveBuoy
 파라미터: pageNo, numOfRows,
 dataType, year, month, station"""
-        return self.call_endpoint('sea_mtly_info_service_get_daily_wave_buoy', params, use_sample=use_sample)
+        return (await self.call_endpoint('sea_mtly_info_service_get_daily_wave_buoy', params, use_sample=use_sample))
 
-    def aws3_nph_sea_obs_imgp1(
+    async def aws3_nph_sea_obs_imgp1(
         self,
         *,
         use_sample: bool = False,
@@ -9199,9 +9164,9 @@ dataType, year, month, station"""
 
 Path: /api/typ03/cgi/aws3/nph-sea_obs_imgp1
 파라미터: 없음"""
-        return self.call_endpoint('aws3_nph_sea_obs_imgp1', params, use_sample=use_sample)
+        return (await self.call_endpoint('aws3_nph_sea_obs_imgp1', params, use_sample=use_sample))
 
-    def kma_lhaws(
+    async def kma_lhaws(
         self,
         *,
         use_sample: bool = False,
@@ -9211,9 +9176,9 @@ Path: /api/typ03/cgi/aws3/nph-sea_obs_imgp1
 
 Path: /api/typ01/url/kma_lhaws.php
 파라미터: tm, stn, help"""
-        return self.call_endpoint('kma_lhaws', params, use_sample=use_sample)
+        return (await self.call_endpoint('kma_lhaws', params, use_sample=use_sample))
 
-    def kma_lhaws2(
+    async def kma_lhaws2(
         self,
         *,
         use_sample: bool = False,
@@ -9223,9 +9188,9 @@ Path: /api/typ01/url/kma_lhaws.php
 
 Path: /api/typ01/url/kma_lhaws2.php
 파라미터: tm1, tm2, stn, help"""
-        return self.call_endpoint('kma_lhaws2', params, use_sample=use_sample)
+        return (await self.call_endpoint('kma_lhaws2', params, use_sample=use_sample))
 
-    def kma_kship(
+    async def kma_kship(
         self,
         *,
         use_sample: bool = False,
@@ -9235,9 +9200,9 @@ Path: /api/typ01/url/kma_lhaws2.php
 
 Path: /api/typ01/url/kma_kship.php
 파라미터: tm, stn, help"""
-        return self.call_endpoint('kma_kship', params, use_sample=use_sample)
+        return (await self.call_endpoint('kma_kship', params, use_sample=use_sample))
 
-    def upp_temp(
+    async def upp_temp(
         self,
         *,
         use_sample: bool = False,
@@ -9248,9 +9213,9 @@ Path: /api/typ01/url/kma_kship.php
 Path: /api/typ01/url/upp_temp.php
 파라미터: tm, stn, pa,
 help"""
-        return self.call_endpoint('upp_temp', params, use_sample=use_sample)
+        return (await self.call_endpoint('upp_temp', params, use_sample=use_sample))
 
-    def sea_kship_temp(
+    async def sea_kship_temp(
         self,
         *,
         use_sample: bool = False,
@@ -9261,9 +9226,9 @@ help"""
 Path: /api/typ01/url/sea_kship_temp.php
 파라미터: tm,
 stn, pa, help"""
-        return self.call_endpoint('sea_kship_temp', params, use_sample=use_sample)
+        return (await self.call_endpoint('sea_kship_temp', params, use_sample=use_sample))
 
-    def upp_mbl_temp(
+    async def upp_mbl_temp(
         self,
         *,
         use_sample: bool = False,
@@ -9274,9 +9239,9 @@ stn, pa, help"""
 Path: /api/typ01/url/upp_mbl_temp.php
 파라미터: tm,
 stn, pa, help"""
-        return self.call_endpoint('upp_mbl_temp', params, use_sample=use_sample)
+        return (await self.call_endpoint('upp_mbl_temp', params, use_sample=use_sample))
 
-    def upp_raw_max(
+    async def upp_raw_max(
         self,
         *,
         use_sample: bool = False,
@@ -9286,9 +9251,9 @@ stn, pa, help"""
 
 Path: /api/typ01/url/upp_raw_max.php
 파라미터: tm1, tm2, stn, help"""
-        return self.call_endpoint('upp_raw_max', params, use_sample=use_sample)
+        return (await self.call_endpoint('upp_raw_max', params, use_sample=use_sample))
 
-    def upp_idx(
+    async def upp_idx(
         self,
         *,
         use_sample: bool = False,
@@ -9298,9 +9263,9 @@ Path: /api/typ01/url/upp_raw_max.php
 
 Path: /api/typ01/url/upp_idx.php
 파라미터: tm1, tm2, stn, help"""
-        return self.call_endpoint('upp_idx', params, use_sample=use_sample)
+        return (await self.call_endpoint('upp_idx', params, use_sample=use_sample))
 
-    def upp_mtly_info_service_get_note(
+    async def upp_mtly_info_service_get_note(
         self,
         *,
         use_sample: bool = False,
@@ -9311,9 +9276,9 @@ Path: /api/typ01/url/upp_idx.php
 Path: /api/typ02/openApi/UppMtlyInfoService/getNote
 파라미터:
 pageNo, numOfRows, dataType, year, month"""
-        return self.call_endpoint('upp_mtly_info_service_get_note', params, use_sample=use_sample)
+        return (await self.call_endpoint('upp_mtly_info_service_get_note', params, use_sample=use_sample))
 
-    def upp_mtly_info_service_get_upp_lst_tbl(
+    async def upp_mtly_info_service_get_upp_lst_tbl(
         self,
         *,
         use_sample: bool = False,
@@ -9323,9 +9288,9 @@ pageNo, numOfRows, dataType, year, month"""
 
 Path: /api/typ02/openApi/UppMtlyInfoService/getUppLstTbl
 파라미터: pageNo, numOfRows, dataType, year, month"""
-        return self.call_endpoint('upp_mtly_info_service_get_upp_lst_tbl', params, use_sample=use_sample)
+        return (await self.call_endpoint('upp_mtly_info_service_get_upp_lst_tbl', params, use_sample=use_sample))
 
-    def upp_mtly_info_service_get_std_isbrsf_value(
+    async def upp_mtly_info_service_get_std_isbrsf_value(
         self,
         *,
         use_sample: bool = False,
@@ -9337,9 +9302,9 @@ Path:
 /api/typ02/openApi/UppMtlyInfoService/getStdIsbrsfValue
 파라미터: pageNo, numOfRows,
 dataType, year, month, station"""
-        return self.call_endpoint('upp_mtly_info_service_get_std_isbrsf_value', params, use_sample=use_sample)
+        return (await self.call_endpoint('upp_mtly_info_service_get_std_isbrsf_value', params, use_sample=use_sample))
 
-    def upp_mtly_info_service_get_max_wind(
+    async def upp_mtly_info_service_get_max_wind(
         self,
         *,
         use_sample: bool = False,
@@ -9349,9 +9314,9 @@ dataType, year, month, station"""
 
 Path: /api/typ02/openApi/UppMtlyInfoService/getMaxWind
 파라미터: pageNo, numOfRows, dataType, year, month"""
-        return self.call_endpoint('upp_mtly_info_service_get_max_wind', params, use_sample=use_sample)
+        return (await self.call_endpoint('upp_mtly_info_service_get_max_wind', params, use_sample=use_sample))
 
-    def upp_mtly_info_service_get_ta_hm_level(
+    async def upp_mtly_info_service_get_ta_hm_level(
         self,
         *,
         use_sample: bool = False,
@@ -9363,9 +9328,9 @@ Path:
 /api/typ02/openApi/UppMtlyInfoService/getTaHmLevel
 파라미터: pageNo, numOfRows, dataType,
 year, month, station"""
-        return self.call_endpoint('upp_mtly_info_service_get_ta_hm_level', params, use_sample=use_sample)
+        return (await self.call_endpoint('upp_mtly_info_service_get_ta_hm_level', params, use_sample=use_sample))
 
-    def upp_mtly_info_service_get_wind_level(
+    async def upp_mtly_info_service_get_wind_level(
         self,
         *,
         use_sample: bool = False,
@@ -9375,9 +9340,9 @@ year, month, station"""
 
 Path: /api/typ02/openApi/UppMtlyInfoService/getWindLevel
 파라미터: pageNo, numOfRows, dataType, year, month, station"""
-        return self.call_endpoint('upp_mtly_info_service_get_wind_level', params, use_sample=use_sample)
+        return (await self.call_endpoint('upp_mtly_info_service_get_wind_level', params, use_sample=use_sample))
 
-    def kma_wpf(
+    async def kma_wpf(
         self,
         *,
         use_sample: bool = False,
@@ -9388,9 +9353,9 @@ Path: /api/typ02/openApi/UppMtlyInfoService/getWindLevel
 Path: /api/typ01/url/kma_wpf.php
 파라미터: tm, stn,
 mode, help"""
-        return self.call_endpoint('kma_wpf', params, use_sample=use_sample)
+        return (await self.call_endpoint('kma_wpf', params, use_sample=use_sample))
 
-    def kma_wpf_file_down(
+    async def kma_wpf_file_down(
         self,
         *,
         use_sample: bool = False,
@@ -9401,9 +9366,9 @@ mode, help"""
 Path:
 /api/typ01/url/kma_wpf_file_down.php
 파라미터: wpf, stn, tm"""
-        return self.call_endpoint('kma_wpf_file_down', params, use_sample=use_sample)
+        return (await self.call_endpoint('kma_wpf_file_down', params, use_sample=use_sample))
 
-    def stn_wpf(
+    async def stn_wpf(
         self,
         *,
         use_sample: bool = False,
@@ -9414,9 +9379,9 @@ Path:
 Path: /api/typ01/url/stn_wpf.php
 파라미터: tm, stn, raw,
 help"""
-        return self.call_endpoint('stn_wpf', params, use_sample=use_sample)
+        return (await self.call_endpoint('stn_wpf', params, use_sample=use_sample))
 
-    def rdr_stn_file_list(
+    async def rdr_stn_file_list(
         self,
         *,
         use_sample: bool = False,
@@ -9427,9 +9392,9 @@ help"""
 Path: /api/typ01/url/rdr_stn_file_list.php
 파라미터:
 stn, rdr, tm, size"""
-        return self.call_endpoint('rdr_stn_file_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_stn_file_list', params, use_sample=use_sample))
 
-    def rdr_cmp_file_list(
+    async def rdr_cmp_file_list(
         self,
         *,
         use_sample: bool = False,
@@ -9440,9 +9405,9 @@ stn, rdr, tm, size"""
 Path: /api/typ01/url/rdr_cmp_file_list.php
 파라미터: cmp,
 tm"""
-        return self.call_endpoint('rdr_cmp_file_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_cmp_file_list', params, use_sample=use_sample))
 
-    def rdr_cmp_inf(
+    async def rdr_cmp_inf(
         self,
         *,
         use_sample: bool = False,
@@ -9453,9 +9418,9 @@ tm"""
 Path: /api/typ01/cgi-bin/url/nph-
 rdr_cmp_inf
 파라미터: tm, cmp, qcd"""
-        return self.call_endpoint('rdr_cmp_inf', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_cmp_inf', params, use_sample=use_sample))
 
-    def rdr_cmp1_api(
+    async def rdr_cmp1_api(
         self,
         *,
         use_sample: bool = False,
@@ -9466,9 +9431,9 @@ rdr_cmp_inf
 Path: /api/typ01/cgi-bin/url/nph-
 rdr_cmp1_api
 파라미터: tm, cmp, qcd, obs, map, disp"""
-        return self.call_endpoint('rdr_cmp1_api', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_cmp1_api', params, use_sample=use_sample))
 
-    def rdr_cmp1_api_2(
+    async def rdr_cmp1_api_2(
         self,
         *,
         use_sample: bool = False,
@@ -9479,9 +9444,9 @@ rdr_cmp1_api
 Path: /api/typ01/cgi-bin/url/nph-
 rdr_cmp1_api
 파라미터: tm, cmp, qcd, obs, acc, map, disp"""
-        return self.call_endpoint('rdr_cmp1_api_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_cmp1_api_2', params, use_sample=use_sample))
 
-    def wthr_radar_info_service_get_comp_cappi_qcd_all(
+    async def wthr_radar_info_service_get_comp_cappi_qcd_all(
         self,
         *,
         use_sample: bool = False,
@@ -9493,9 +9458,9 @@ Path:
 /api/typ02/openApi/WthrRadarInfoService/getCompCappiQcdAll
 파라미터: pageNo, numOfRows,
 dataType, dateTime, compType, dataTypeCd"""
-        return self.call_endpoint('wthr_radar_info_service_get_comp_cappi_qcd_all', params, use_sample=use_sample)
+        return (await self.call_endpoint('wthr_radar_info_service_get_comp_cappi_qcd_all', params, use_sample=use_sample))
 
-    def wthr_radar_info_service_get_comp_cappi_qcd_area(
+    async def wthr_radar_info_service_get_comp_cappi_qcd_area(
         self,
         *,
         use_sample: bool = False,
@@ -9507,9 +9472,9 @@ Path:
 /api/typ02/openApi/WthrRadarInfoService/getCompCappiQcdArea
 파라미터: pageNo, numOfRows,
 dataType, dateTime, compType, dataTypeCd, dongCode"""
-        return self.call_endpoint('wthr_radar_info_service_get_comp_cappi_qcd_area', params, use_sample=use_sample)
+        return (await self.call_endpoint('wthr_radar_info_service_get_comp_cappi_qcd_area', params, use_sample=use_sample))
 
-    def rdr_latlon_api(
+    async def rdr_latlon_api(
         self,
         *,
         use_sample: bool = False,
@@ -9520,9 +9485,9 @@ dataType, dateTime, compType, dataTypeCd, dongCode"""
 Path: /api/typ01/cgi-bin/url/nph-
 rdr_latlon_api
 파라미터: cmp, latlon, disp"""
-        return self.call_endpoint('rdr_latlon_api', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_latlon_api', params, use_sample=use_sample))
 
-    def rdr_latlon_file_down(
+    async def rdr_latlon_file_down(
         self,
         *,
         use_sample: bool = False,
@@ -9533,9 +9498,9 @@ rdr_latlon_api
 Path:
 /api/typ01/url/rdr_latlon_file_down.php
 파라미터: cmp"""
-        return self.call_endpoint('rdr_latlon_file_down', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_latlon_file_down', params, use_sample=use_sample))
 
-    def rdr_cmp_file(
+    async def rdr_cmp_file(
         self,
         *,
         use_sample: bool = False,
@@ -9545,9 +9510,9 @@ Path:
 
 Path: /api/typ04/url/rdr_cmp_file.php
 파라미터: tm, data, cmp"""
-        return self.call_endpoint('rdr_cmp_file', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_cmp_file', params, use_sample=use_sample))
 
-    def wthr_radar_info_service_get_site_cappi_qcd_all(
+    async def wthr_radar_info_service_get_site_cappi_qcd_all(
         self,
         *,
         use_sample: bool = False,
@@ -9559,9 +9524,9 @@ Path:
 /api/typ02/openApi/WthrRadarInfoService/getSiteCappiQcdAll
 파라미터: pageNo, numOfRows,
 dataType, dateTime, dataTypeCd, siteCode, sweep"""
-        return self.call_endpoint('wthr_radar_info_service_get_site_cappi_qcd_all', params, use_sample=use_sample)
+        return (await self.call_endpoint('wthr_radar_info_service_get_site_cappi_qcd_all', params, use_sample=use_sample))
 
-    def wthr_radar_info_service_get_site_cappi_qcd_area(
+    async def wthr_radar_info_service_get_site_cappi_qcd_area(
         self,
         *,
         use_sample: bool = False,
@@ -9573,9 +9538,9 @@ Path:
 /api/typ02/openApi/WthrRadarInfoService/getSiteCappiQcdArea
 파라미터: pageNo, numOfRows,
 dataType, dateTime, dataTypeCd, siteCode, sweep, dongCode"""
-        return self.call_endpoint('wthr_radar_info_service_get_site_cappi_qcd_area', params, use_sample=use_sample)
+        return (await self.call_endpoint('wthr_radar_info_service_get_site_cappi_qcd_area', params, use_sample=use_sample))
 
-    def rdr_nph_rdr_cmp1_img(
+    async def rdr_nph_rdr_cmp1_img(
         self,
         *,
         use_sample: bool = False,
@@ -9587,9 +9552,9 @@ Path: /api/typ03/cgi/rdr/nph-rdr_cmp1_img
 파라미터: tm,
 cmp, qcd, obs, color, aws, acc, map, grid, legend, size, itv, zoom_level, zoom_x,
 zoom_y, gov"""
-        return self.call_endpoint('rdr_nph_rdr_cmp1_img', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_nph_rdr_cmp1_img', params, use_sample=use_sample))
 
-    def rdr_nph_rdr_wis_ana_img(
+    async def rdr_nph_rdr_wis_ana_img(
         self,
         *,
         use_sample: bool = False,
@@ -9601,9 +9566,9 @@ Path: /api/typ03/cgi/rdr/nph-
 rdr_wis_ana_img
 파라미터: tm, obs, wv, ht, map, grid, legend, size, itv, zoom_level, zoom_x,
 zoom_y, gov"""
-        return self.call_endpoint('rdr_nph_rdr_wis_ana_img', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_nph_rdr_wis_ana_img', params, use_sample=use_sample))
 
-    def rdr_nph_rdr_obs_ta_h_img(
+    async def rdr_nph_rdr_obs_ta_h_img(
         self,
         *,
         use_sample: bool = False,
@@ -9613,9 +9578,9 @@ zoom_y, gov"""
 
 Path: /api/typ03/cgi/rdr/nph-rdr_obs_taH_img
 파라미터: tm, obs, ta1, ta2, map, grid, legend, size, itv, zoom_level, zoom_x, zoom_y, gov"""
-        return self.call_endpoint('rdr_nph_rdr_obs_ta_h_img', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_nph_rdr_obs_ta_h_img', params, use_sample=use_sample))
 
-    def rdr_nph_qpf_ana_img(
+    async def rdr_nph_qpf_ana_img(
         self,
         *,
         use_sample: bool = False,
@@ -9626,9 +9591,9 @@ Path: /api/typ03/cgi/rdr/nph-rdr_obs_taH_img
 Path: /api/typ03/cgi/rdr/nph-qpf_ana_img
 파라미터:
 tm, qpf, eva, option, ef, map, grid, legend, size, itv, zoom_level, zoom_x, zoom_y, gov"""
-        return self.call_endpoint('rdr_nph_qpf_ana_img', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_nph_qpf_ana_img', params, use_sample=use_sample))
 
-    def rdr_nph_rdr_cmp1_imgp(
+    async def rdr_nph_rdr_cmp1_imgp(
         self,
         *,
         use_sample: bool = False,
@@ -9642,9 +9607,9 @@ zoom_rate, zoom_x, zoom_y, auto_man, mode, umove, fmove, dmove, bmove, winnum, r
 size, an_frn, an_itv, river, road, city, gis_auto, stnname, ctrl, dataDtlCd, data1,
 data2, data3, overlay, color, effect, height, qpf, ef, legend, STARTX, STARTY, ENDX,
 ENDY, ZOOMLVL, selWs, tm, tm_st, tm_ed, tm2"""
-        return self.call_endpoint('rdr_nph_rdr_cmp1_imgp', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_nph_rdr_cmp1_imgp', params, use_sample=use_sample))
 
-    def rdr_nph_rdr_wis_ana_imgp(
+    async def rdr_nph_rdr_wis_ana_imgp(
         self,
         *,
         use_sample: bool = False,
@@ -9659,9 +9624,9 @@ zoom_level, zoom_rate, zoom_x, zoom_y, auto_man, mode, umove, fmove, dmove, bmov
 winnum, rand, size, an_frn, an_itv, river, road, city, gis_auto, stnname, ctrl,
 dataDtlCd, data1, data2, data3, overlay, color, effect, height, qpf, ef, eva, option,
 legend, acc, sms, STARTX, STARTY, ENDX, ENDY, ZOOMLVL, selWs, tm, tm_st, tm_ed, tm2"""
-        return self.call_endpoint('rdr_nph_rdr_wis_ana_imgp', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_nph_rdr_wis_ana_imgp', params, use_sample=use_sample))
 
-    def rdr_nph_rdr_obs_ta_h_imgp(
+    async def rdr_nph_rdr_obs_ta_h_imgp(
         self,
         *,
         use_sample: bool = False,
@@ -9676,9 +9641,9 @@ zoom_level, zoom_rate, zoom_x, zoom_y, auto_man, mode, umove, fmove, dmove, bmov
 winnum, rand, size, an_frn, an_itv, river, road, city, gis_auto, stnname, ctrl,
 dataDtlCd, data1, data2, data3, overlay, color, effect, height, qpf, ef, eva, option,
 legend, acc, sms, STARTX, STARTY, ENDX, ENDY, ZOOMLVL, selWs, tm, tm_st, tm_ed, tm2"""
-        return self.call_endpoint('rdr_nph_rdr_obs_ta_h_imgp', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_nph_rdr_obs_ta_h_imgp', params, use_sample=use_sample))
 
-    def rdr_nph_qpf_ana_imgp(
+    async def rdr_nph_qpf_ana_imgp(
         self,
         *,
         use_sample: bool = False,
@@ -9692,9 +9657,9 @@ zoom_rate, zoom_x, zoom_y, auto_man, mode, umove, fmove, dmove, bmove, winnum, r
 size, an_frn, an_itv, river, road, city, gis_auto, stnname, ctrl, dataDtlCd, data1,
 data2, data3, overlay, color, effect, height, qpf, ef, eva, option, STARTX, STARTY,
 ENDX, ENDY, ZOOMLVL, selWs, tm, tm_st, tm_ed, tm2"""
-        return self.call_endpoint('rdr_nph_qpf_ana_imgp', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_nph_qpf_ana_imgp', params, use_sample=use_sample))
 
-    def rdr_uf_list(
+    async def rdr_uf_list(
         self,
         *,
         use_sample: bool = False,
@@ -9705,9 +9670,9 @@ ENDX, ENDY, ZOOMLVL, selWs, tm, tm_st, tm_ed, tm2"""
 Path: /api/typ01/url/rdr_uf_list.php
 파라미터: tm, dtm, stn,
 qcd, disp, help"""
-        return self.call_endpoint('rdr_uf_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_uf_list', params, use_sample=use_sample))
 
-    def rdr_file_list(
+    async def rdr_file_list(
         self,
         *,
         use_sample: bool = False,
@@ -9718,9 +9683,9 @@ qcd, disp, help"""
 Path: /api/typ01/url/rdr_file_list.php
 파라미터: rdr,
 qcd, tm"""
-        return self.call_endpoint('rdr_file_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_file_list', params, use_sample=use_sample))
 
-    def rdr_uf_inf(
+    async def rdr_uf_inf(
         self,
         *,
         use_sample: bool = False,
@@ -9731,9 +9696,9 @@ qcd, tm"""
 Path: /api/typ01/cgi-bin/url/nph-rdr_uf_inf
 파라미터: tm, stn,
 qcd, help"""
-        return self.call_endpoint('rdr_uf_inf', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_uf_inf', params, use_sample=use_sample))
 
-    def rdr_uf_data(
+    async def rdr_uf_data(
         self,
         *,
         use_sample: bool = False,
@@ -9744,9 +9709,9 @@ qcd, help"""
 Path: /api/typ01/cgi-bin/url/nph-rdr_uf_data
 파라미터:
 tm, stn, qcd, vol, sw, mode, help"""
-        return self.call_endpoint('rdr_uf_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_uf_data', params, use_sample=use_sample))
 
-    def rdr_file_down(
+    async def rdr_file_down(
         self,
         *,
         use_sample: bool = False,
@@ -9757,9 +9722,9 @@ tm, stn, qcd, vol, sw, mode, help"""
 Path: /api/typ01/url/rdr_file_down.php
 파라미터: rdr, stn,
 qcd, tm"""
-        return self.call_endpoint('rdr_file_down', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_file_down', params, use_sample=use_sample))
 
-    def rdr_file_down_nc(
+    async def rdr_file_down_nc(
         self,
         *,
         use_sample: bool = False,
@@ -9770,9 +9735,9 @@ qcd, tm"""
 Path: /api/typ01/url/rdr_file_down_nc.php
 파라미터: rdr,
 stn, qcd, tm"""
-        return self.call_endpoint('rdr_file_down_nc', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_file_down_nc', params, use_sample=use_sample))
 
-    def rdr_site_file(
+    async def rdr_site_file(
         self,
         *,
         use_sample: bool = False,
@@ -9783,9 +9748,9 @@ stn, qcd, tm"""
 Path: /api/typ04/url/rdr_site_file.php
 파라미터: tm,
 data, stn"""
-        return self.call_endpoint('rdr_site_file', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_site_file', params, use_sample=use_sample))
 
-    def rdr_cmp_aws_pt_data(
+    async def rdr_cmp_aws_pt_data(
         self,
         *,
         use_sample: bool = False,
@@ -9795,9 +9760,9 @@ data, stn"""
 
 Path: /api/typ01/cgi-bin/url/nph-rdr_cmp_aws_pt_data
 파라미터: tm1, tm2, itv, qcd, cmp, stn, help"""
-        return self.call_endpoint('rdr_cmp_aws_pt_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_cmp_aws_pt_data', params, use_sample=use_sample))
 
-    def rdr_cmp_aws_all_pt_data(
+    async def rdr_cmp_aws_all_pt_data(
         self,
         *,
         use_sample: bool = False,
@@ -9808,9 +9773,9 @@ Path: /api/typ01/cgi-bin/url/nph-rdr_cmp_aws_pt_data
 Path: /api/typ01/cgi-bin/url/nph-
 rdr_cmp_aws_all_pt_data
 파라미터: tm, qcd, cmp, help"""
-        return self.call_endpoint('rdr_cmp_aws_all_pt_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('rdr_cmp_aws_all_pt_data', params, use_sample=use_sample))
 
-    def lgt_kma_np1(
+    async def lgt_kma_np1(
         self,
         *,
         use_sample: bool = False,
@@ -9821,9 +9786,9 @@ rdr_cmp_aws_all_pt_data
 Path:
 /api/typ01/url/lgt_kma_np1.php
 파라미터: tm1, tm2, help"""
-        return self.call_endpoint('lgt_kma_np1', params, use_sample=use_sample)
+        return (await self.call_endpoint('lgt_kma_np1', params, use_sample=use_sample))
 
-    def lgt_kma_np2(
+    async def lgt_kma_np2(
         self,
         *,
         use_sample: bool = False,
@@ -9834,9 +9799,9 @@ Path:
 Path:
 /api/typ01/url/lgt_kma_np2.php
 파라미터: tm1, tm2, help"""
-        return self.call_endpoint('lgt_kma_np2', params, use_sample=use_sample)
+        return (await self.call_endpoint('lgt_kma_np2', params, use_sample=use_sample))
 
-    def lgt_kma_np3(
+    async def lgt_kma_np3(
         self,
         *,
         use_sample: bool = False,
@@ -9847,9 +9812,9 @@ Path:
 Path:
 /api/typ01/url/lgt_kma_np3.php
 파라미터: tm1, tm2, help"""
-        return self.call_endpoint('lgt_kma_np3', params, use_sample=use_sample)
+        return (await self.call_endpoint('lgt_kma_np3', params, use_sample=use_sample))
 
-    def lgt_kma_nx1(
+    async def lgt_kma_nx1(
         self,
         *,
         use_sample: bool = False,
@@ -9859,9 +9824,9 @@ Path:
 
 Path: /api/typ01/url/lgt_kma_nx1.php
 파라미터: tm1, tm2, help"""
-        return self.call_endpoint('lgt_kma_nx1', params, use_sample=use_sample)
+        return (await self.call_endpoint('lgt_kma_nx1', params, use_sample=use_sample))
 
-    def lgt_pnt(
+    async def lgt_pnt(
         self,
         *,
         use_sample: bool = False,
@@ -9871,9 +9836,9 @@ Path: /api/typ01/url/lgt_kma_nx1.php
 
 Path: /api/typ01/url/lgt_pnt.php
 파라미터: tm, itv"""
-        return self.call_endpoint('lgt_pnt', params, use_sample=use_sample)
+        return (await self.call_endpoint('lgt_pnt', params, use_sample=use_sample))
 
-    def lgt_pnt_2(
+    async def lgt_pnt_2(
         self,
         *,
         use_sample: bool = False,
@@ -9884,9 +9849,9 @@ Path: /api/typ01/url/lgt_pnt.php
 Path: /api/typ01/url/lgt_pnt.php
 파라미터:
 tm, itv, lon, lat, range"""
-        return self.call_endpoint('lgt_pnt_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('lgt_pnt_2', params, use_sample=use_sample))
 
-    def lgt_pnt_3(
+    async def lgt_pnt_3(
         self,
         *,
         use_sample: bool = False,
@@ -9897,9 +9862,9 @@ tm, itv, lon, lat, range"""
 Path: /api/typ01/url/lgt_pnt.php
 파라미터:
 tm, itv, lon, lat, range, gc"""
-        return self.call_endpoint('lgt_pnt_3', params, use_sample=use_sample)
+        return (await self.call_endpoint('lgt_pnt_3', params, use_sample=use_sample))
 
-    def lgt_stn(
+    async def lgt_stn(
         self,
         *,
         use_sample: bool = False,
@@ -9909,9 +9874,9 @@ tm, itv, lon, lat, range, gc"""
 
 Path: /api/typ01/url/lgt_stn.php
 파라미터: tp, tm, range"""
-        return self.call_endpoint('lgt_stn', params, use_sample=use_sample)
+        return (await self.call_endpoint('lgt_stn', params, use_sample=use_sample))
 
-    def lgt_nph_lgt_str_img(
+    async def lgt_nph_lgt_str_img(
         self,
         *,
         use_sample: bool = False,
@@ -9922,9 +9887,9 @@ Path: /api/typ01/url/lgt_stn.php
 Path: /api/typ03/cgi/lgt/nph-lgt_str_img
 파라미터: obs, tm, val, stn,
 obj, map, grid, legend, size, itv, zoom_level, zoom_x, zoom_y, gov"""
-        return self.call_endpoint('lgt_nph_lgt_str_img', params, use_sample=use_sample)
+        return (await self.call_endpoint('lgt_nph_lgt_str_img', params, use_sample=use_sample))
 
-    def lgt_nph_lgt_ana_img(
+    async def lgt_nph_lgt_ana_img(
         self,
         *,
         use_sample: bool = False,
@@ -9935,9 +9900,9 @@ obj, map, grid, legend, size, itv, zoom_level, zoom_x, zoom_y, gov"""
 Path: /api/typ03/cgi/lgt/nph-lgt_ana_img
 파라미터: obs, tm, val, stn,
 obj, map, grid, legend, size, itv, zoom_level, zoom_x, zoom_y, gov"""
-        return self.call_endpoint('lgt_nph_lgt_ana_img', params, use_sample=use_sample)
+        return (await self.call_endpoint('lgt_nph_lgt_ana_img', params, use_sample=use_sample))
 
-    def lgt_nph_lgt_dst_img(
+    async def lgt_nph_lgt_dst_img(
         self,
         *,
         use_sample: bool = False,
@@ -9948,9 +9913,9 @@ obj, map, grid, legend, size, itv, zoom_level, zoom_x, zoom_y, gov"""
 Path: /api/typ03/cgi/lgt/nph-lgt_dst_img
 파라미터: obs, tm, val, stn,
 obj, map, grid, legend, size, itv, zoom_level, zoom_x, zoom_y, gov"""
-        return self.call_endpoint('lgt_nph_lgt_dst_img', params, use_sample=use_sample)
+        return (await self.call_endpoint('lgt_nph_lgt_dst_img', params, use_sample=use_sample))
 
-    def lgt_admndst_cnt(
+    async def lgt_admndst_cnt(
         self,
         *,
         use_sample: bool = False,
@@ -9961,9 +9926,9 @@ obj, map, grid, legend, size, itv, zoom_level, zoom_x, zoom_y, gov"""
 Path: /api/typ01/url/lgt_admndst_cnt.php
 파라미터:
 admdst_dv, unit, interval, tm, disp, help"""
-        return self.call_endpoint('lgt_admndst_cnt', params, use_sample=use_sample)
+        return (await self.call_endpoint('lgt_admndst_cnt', params, use_sample=use_sample))
 
-    def wethr_basic_info_service_get_radar_obs_stn(
+    async def wethr_basic_info_service_get_radar_obs_stn(
         self,
         *,
         use_sample: bool = False,
@@ -9975,9 +9940,9 @@ Path:
 /api/typ02/openApi/WethrBasicInfoService/getRadarObsStn
 파라미터: pageNo, numOfRows,
 dataType"""
-        return self.call_endpoint('wethr_basic_info_service_get_radar_obs_stn', params, use_sample=use_sample)
+        return (await self.call_endpoint('wethr_basic_info_service_get_radar_obs_stn', params, use_sample=use_sample))
 
-    def nr016_fd_data(
+    async def nr016_fd_data(
         self,
         *,
         use_sample: bool = False,
@@ -9988,9 +9953,9 @@ dataType"""
 Path: /api/typ05/api/GK2A/LE1B/NR016/FD/data
 파라미터:
 date"""
-        return self.call_endpoint('nr016_fd_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('nr016_fd_data', params, use_sample=use_sample))
 
-    def sw038_tp_data_list(
+    async def sw038_tp_data_list(
         self,
         *,
         use_sample: bool = False,
@@ -10000,9 +9965,9 @@ date"""
 
 Path: /api/typ05/api/GK2A/LE1B/SW038/TP/dataList
 파라미터: sDate, eDate"""
-        return self.call_endpoint('sw038_tp_data_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('sw038_tp_data_list', params, use_sample=use_sample))
 
-    def vi004_ea_image(
+    async def vi004_ea_image(
         self,
         *,
         use_sample: bool = False,
@@ -10013,9 +9978,9 @@ Path: /api/typ05/api/GK2A/LE1B/SW038/TP/dataList
 Path: /api/typ05/api/GK2A/LE1B/VI004/EA/image
 파라미터:
 date"""
-        return self.call_endpoint('vi004_ea_image', params, use_sample=use_sample)
+        return (await self.call_endpoint('vi004_ea_image', params, use_sample=use_sample))
 
-    def vi005_fd_image_list(
+    async def vi005_fd_image_list(
         self,
         *,
         use_sample: bool = False,
@@ -10025,9 +9990,9 @@ date"""
 
 Path: /api/typ05/api/GK2A/LE1B/VI005/FD/imageList
 파라미터: sDate, eDate"""
-        return self.call_endpoint('vi005_fd_image_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('vi005_fd_image_list', params, use_sample=use_sample))
 
-    def ci_ela_data(
+    async def ci_ela_data(
         self,
         *,
         use_sample: bool = False,
@@ -10037,9 +10002,9 @@ Path: /api/typ05/api/GK2A/LE1B/VI005/FD/imageList
 
 Path: /api/typ05/api/GK2A/LE2/CI/ELA/data
 파라미터: date"""
-        return self.call_endpoint('ci_ela_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('ci_ela_data', params, use_sample=use_sample))
 
-    def so2_d_ko_data_list(
+    async def so2_d_ko_data_list(
         self,
         *,
         use_sample: bool = False,
@@ -10049,9 +10014,9 @@ Path: /api/typ05/api/GK2A/LE2/CI/ELA/data
 
 Path: /api/typ05/api/GK2A/LE2/SO2D/KO/dataList
 파라미터: sDate, eDate"""
-        return self.call_endpoint('so2_d_ko_data_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('so2_d_ko_data_list', params, use_sample=use_sample))
 
-    def cld_ea_image(
+    async def cld_ea_image(
         self,
         *,
         use_sample: bool = False,
@@ -10062,9 +10027,9 @@ Path: /api/typ05/api/GK2A/LE2/SO2D/KO/dataList
 Path: /api/typ05/api/GK2A/LE2/CLD/EA/image
 파라미터:
 date"""
-        return self.call_endpoint('cld_ea_image', params, use_sample=use_sample)
+        return (await self.call_endpoint('cld_ea_image', params, use_sample=use_sample))
 
-    def rr_ea_image_list(
+    async def rr_ea_image_list(
         self,
         *,
         use_sample: bool = False,
@@ -10075,9 +10040,9 @@ date"""
 Path: /api/typ05/api/GK2A/LE2/RR/EA/imageList
 파라미터:
 sDate, eDate"""
-        return self.call_endpoint('rr_ea_image_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('rr_ea_image_list', params, use_sample=use_sample))
 
-    def pd_e_1_m_na_data(
+    async def pd_e_1_m_na_data(
         self,
         *,
         use_sample: bool = False,
@@ -10088,9 +10053,9 @@ sDate, eDate"""
 Path: /api/typ05/api/GK2A/LV1/PD-E-1M/NA/data
 파라미터:
 date"""
-        return self.call_endpoint('pd_e_1_m_na_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('pd_e_1_m_na_data', params, use_sample=use_sample))
 
-    def pd_e_1_m_na_data_list(
+    async def pd_e_1_m_na_data_list(
         self,
         *,
         use_sample: bool = False,
@@ -10100,9 +10065,9 @@ date"""
 
 Path: /api/typ05/api/GK2A/LV1/PD-E-1M/NA/dataList
 파라미터: sDate, eDate"""
-        return self.call_endpoint('pd_e_1_m_na_data_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('pd_e_1_m_na_data_list', params, use_sample=use_sample))
 
-    def sat_nph_sat_ana_txt(
+    async def sat_nph_sat_ana_txt(
         self,
         *,
         use_sample: bool = False,
@@ -10113,9 +10078,9 @@ Path: /api/typ05/api/GK2A/LV1/PD-E-1M/NA/dataList
 Path: /api/typ01/cgi-bin/sat/nph-
 sat_ana_txt
 파라미터: tm, obs, help"""
-        return self.call_endpoint('sat_nph_sat_ana_txt', params, use_sample=use_sample)
+        return (await self.call_endpoint('sat_nph_sat_ana_txt', params, use_sample=use_sample))
 
-    def sat_nph_sat_ana_img(
+    async def sat_nph_sat_ana_img(
         self,
         *,
         use_sample: bool = False,
@@ -10126,9 +10091,9 @@ sat_ana_txt
 Path: /api/typ01/cgi-bin/sat/nph-
 sat_ana_img
 파라미터: obs, tm, size, sat, map, xp, yp, zoom, scn"""
-        return self.call_endpoint('sat_nph_sat_ana_img', params, use_sample=use_sample)
+        return (await self.call_endpoint('sat_nph_sat_ana_img', params, use_sample=use_sample))
 
-    def sat_file_down2(
+    async def sat_file_down2(
         self,
         *,
         use_sample: bool = False,
@@ -10139,9 +10104,9 @@ sat_ana_img
 Path:
 /api/typ01/url/sat_file_down2.php
 파라미터: lvl, dat, are, tm, typ"""
-        return self.call_endpoint('sat_file_down2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sat_file_down2', params, use_sample=use_sample))
 
-    def sat_file_list(
+    async def sat_file_list(
         self,
         *,
         use_sample: bool = False,
@@ -10152,9 +10117,9 @@ Path:
 Path: /api/typ01/url/sat_file_list.php
 파라미터:
 sat, vars, area, fmt, tm, size, filter"""
-        return self.call_endpoint('sat_file_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('sat_file_list', params, use_sample=use_sample))
 
-    def sat_file_down2_2(
+    async def sat_file_down2_2(
         self,
         *,
         use_sample: bool = False,
@@ -10165,9 +10130,9 @@ sat, vars, area, fmt, tm, size, filter"""
 Path:
 /api/typ01/url/sat_file_down2.php
 파라미터: typ, lvl, are, chn, tm"""
-        return self.call_endpoint('sat_file_down2_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sat_file_down2_2', params, use_sample=use_sample))
 
-    def sat_file_down2_3(
+    async def sat_file_down2_3(
         self,
         *,
         use_sample: bool = False,
@@ -10178,9 +10143,9 @@ Path:
 Path:
 /api/typ01/url/sat_file_down2.php
 파라미터: typ, lvl, are, dat, tm"""
-        return self.call_endpoint('sat_file_down2_3', params, use_sample=use_sample)
+        return (await self.call_endpoint('sat_file_down2_3', params, use_sample=use_sample))
 
-    def cloud_satlit_info_service_get_gk2acla_area(
+    async def cloud_satlit_info_service_get_gk2acla_area(
         self,
         *,
         use_sample: bool = False,
@@ -10192,9 +10157,9 @@ Path:
 /api/typ02/openApi/CloudSatlitInfoService/getGk2aclaArea
 파라미터: pageNo, numOfRows,
 dataType, dateTime, resultType, dongCode"""
-        return self.call_endpoint('cloud_satlit_info_service_get_gk2acla_area', params, use_sample=use_sample)
+        return (await self.call_endpoint('cloud_satlit_info_service_get_gk2acla_area', params, use_sample=use_sample))
 
-    def cloud_satlit_info_service_get_gk2adcoew_area(
+    async def cloud_satlit_info_service_get_gk2adcoew_area(
         self,
         *,
         use_sample: bool = False,
@@ -10206,9 +10171,9 @@ Path:
 /api/typ02/openApi/CloudSatlitInfoService/getGk2adcoewArea
 파라미터: pageNo, numOfRows,
 dataType, dateTime, resultType, dongCode"""
-        return self.call_endpoint('cloud_satlit_info_service_get_gk2adcoew_area', params, use_sample=use_sample)
+        return (await self.call_endpoint('cloud_satlit_info_service_get_gk2adcoew_area', params, use_sample=use_sample))
 
-    def cloud_satlit_info_service_get_gk2afog_area(
+    async def cloud_satlit_info_service_get_gk2afog_area(
         self,
         *,
         use_sample: bool = False,
@@ -10220,9 +10185,9 @@ Path:
 /api/typ02/openApi/CloudSatlitInfoService/getGk2afogArea
 파라미터: pageNo, numOfRows,
 dataType, dateTime, resultType, dongCode"""
-        return self.call_endpoint('cloud_satlit_info_service_get_gk2afog_area', params, use_sample=use_sample)
+        return (await self.call_endpoint('cloud_satlit_info_service_get_gk2afog_area', params, use_sample=use_sample))
 
-    def cloud_satlit_info_service_get_gk2aapps_area(
+    async def cloud_satlit_info_service_get_gk2aapps_area(
         self,
         *,
         use_sample: bool = False,
@@ -10234,9 +10199,9 @@ Path:
 /api/typ02/openApi/CloudSatlitInfoService/getGk2aappsArea
 파라미터: pageNo, numOfRows,
 dataType, dateTime, resultType, dongCode"""
-        return self.call_endpoint('cloud_satlit_info_service_get_gk2aapps_area', params, use_sample=use_sample)
+        return (await self.call_endpoint('cloud_satlit_info_service_get_gk2aapps_area', params, use_sample=use_sample))
 
-    def cloud_satlit_info_service_get_gk2acld_area(
+    async def cloud_satlit_info_service_get_gk2acld_area(
         self,
         *,
         use_sample: bool = False,
@@ -10248,9 +10213,9 @@ Path:
 /api/typ02/openApi/CloudSatlitInfoService/getGk2acldArea
 파라미터: pageNo, numOfRows,
 dataType, dateTime, resultType, dongCode"""
-        return self.call_endpoint('cloud_satlit_info_service_get_gk2acld_area', params, use_sample=use_sample)
+        return (await self.call_endpoint('cloud_satlit_info_service_get_gk2acld_area', params, use_sample=use_sample))
 
-    def cloud_satlit_info_service_get_gk2acla_all(
+    async def cloud_satlit_info_service_get_gk2acla_all(
         self,
         *,
         use_sample: bool = False,
@@ -10262,9 +10227,9 @@ Path:
 /api/typ02/openApi/CloudSatlitInfoService/getGk2aclaAll
 파라미터: pageNo, numOfRows,
 dataType, dateTime, resultType"""
-        return self.call_endpoint('cloud_satlit_info_service_get_gk2acla_all', params, use_sample=use_sample)
+        return (await self.call_endpoint('cloud_satlit_info_service_get_gk2acla_all', params, use_sample=use_sample))
 
-    def cloud_satlit_info_service_get_gk2adcoew_all(
+    async def cloud_satlit_info_service_get_gk2adcoew_all(
         self,
         *,
         use_sample: bool = False,
@@ -10276,9 +10241,9 @@ Path:
 /api/typ02/openApi/CloudSatlitInfoService/getGk2adcoewAll
 파라미터: pageNo, numOfRows,
 dataType, dateTime, resultType"""
-        return self.call_endpoint('cloud_satlit_info_service_get_gk2adcoew_all', params, use_sample=use_sample)
+        return (await self.call_endpoint('cloud_satlit_info_service_get_gk2adcoew_all', params, use_sample=use_sample))
 
-    def cloud_satlit_info_service_get_gk2afog_all(
+    async def cloud_satlit_info_service_get_gk2afog_all(
         self,
         *,
         use_sample: bool = False,
@@ -10290,9 +10255,9 @@ Path:
 /api/typ02/openApi/CloudSatlitInfoService/getGk2afogAll
 파라미터: pageNo, numOfRows,
 dataType, dateTime, resultType"""
-        return self.call_endpoint('cloud_satlit_info_service_get_gk2afog_all', params, use_sample=use_sample)
+        return (await self.call_endpoint('cloud_satlit_info_service_get_gk2afog_all', params, use_sample=use_sample))
 
-    def cloud_satlit_info_service_get_gk2aapps_all(
+    async def cloud_satlit_info_service_get_gk2aapps_all(
         self,
         *,
         use_sample: bool = False,
@@ -10304,9 +10269,9 @@ Path:
 /api/typ02/openApi/CloudSatlitInfoService/getGk2aappsAll
 파라미터: pageNo, numOfRows,
 dataType, dateTime, resultType"""
-        return self.call_endpoint('cloud_satlit_info_service_get_gk2aapps_all', params, use_sample=use_sample)
+        return (await self.call_endpoint('cloud_satlit_info_service_get_gk2aapps_all', params, use_sample=use_sample))
 
-    def cloud_satlit_info_service_get_gk2acld_all(
+    async def cloud_satlit_info_service_get_gk2acld_all(
         self,
         *,
         use_sample: bool = False,
@@ -10318,9 +10283,9 @@ Path:
 /api/typ02/openApi/CloudSatlitInfoService/getGk2acldAll
 파라미터: pageNo, numOfRows,
 dataType, dateTime, resultType"""
-        return self.call_endpoint('cloud_satlit_info_service_get_gk2acld_all', params, use_sample=use_sample)
+        return (await self.call_endpoint('cloud_satlit_info_service_get_gk2acld_all', params, use_sample=use_sample))
 
-    def wthr_satlit_info_service_get_gk2a_ir_all(
+    async def wthr_satlit_info_service_get_gk2a_ir_all(
         self,
         *,
         use_sample: bool = False,
@@ -10332,9 +10297,9 @@ Path:
 /api/typ02/openApi/WthrSatlitInfoService/getGk2aIrAll
 파라미터: pageNo, numOfRows, dataType,
 dateTime, waveType, unitType"""
-        return self.call_endpoint('wthr_satlit_info_service_get_gk2a_ir_all', params, use_sample=use_sample)
+        return (await self.call_endpoint('wthr_satlit_info_service_get_gk2a_ir_all', params, use_sample=use_sample))
 
-    def wthr_satlit_info_service_get_gk2a_nr_all(
+    async def wthr_satlit_info_service_get_gk2a_nr_all(
         self,
         *,
         use_sample: bool = False,
@@ -10346,9 +10311,9 @@ Path:
 /api/typ02/openApi/WthrSatlitInfoService/getGk2aNrAll
 파라미터: pageNo, numOfRows, dataType,
 dateTime, waveType, unitType"""
-        return self.call_endpoint('wthr_satlit_info_service_get_gk2a_nr_all', params, use_sample=use_sample)
+        return (await self.call_endpoint('wthr_satlit_info_service_get_gk2a_nr_all', params, use_sample=use_sample))
 
-    def wthr_satlit_info_service_get_gk2a_sw_all(
+    async def wthr_satlit_info_service_get_gk2a_sw_all(
         self,
         *,
         use_sample: bool = False,
@@ -10360,9 +10325,9 @@ Path:
 /api/typ02/openApi/WthrSatlitInfoService/getGk2aSwAll
 파라미터: pageNo, numOfRows, dataType,
 dateTime, waveType, unitType"""
-        return self.call_endpoint('wthr_satlit_info_service_get_gk2a_sw_all', params, use_sample=use_sample)
+        return (await self.call_endpoint('wthr_satlit_info_service_get_gk2a_sw_all', params, use_sample=use_sample))
 
-    def wthr_satlit_info_service_get_gk2a_vi_all(
+    async def wthr_satlit_info_service_get_gk2a_vi_all(
         self,
         *,
         use_sample: bool = False,
@@ -10374,9 +10339,9 @@ Path:
 /api/typ02/openApi/WthrSatlitInfoService/getGk2aViAll
 파라미터: pageNo, numOfRows, dataType,
 dateTime, waveType, unitType"""
-        return self.call_endpoint('wthr_satlit_info_service_get_gk2a_vi_all', params, use_sample=use_sample)
+        return (await self.call_endpoint('wthr_satlit_info_service_get_gk2a_vi_all', params, use_sample=use_sample))
 
-    def wthr_satlit_info_service_get_gk2a_wv_all(
+    async def wthr_satlit_info_service_get_gk2a_wv_all(
         self,
         *,
         use_sample: bool = False,
@@ -10388,9 +10353,9 @@ Path:
 /api/typ02/openApi/WthrSatlitInfoService/getGk2aWvAll
 파라미터: pageNo, numOfRows, dataType,
 dateTime, waveType, unitType"""
-        return self.call_endpoint('wthr_satlit_info_service_get_gk2a_wv_all', params, use_sample=use_sample)
+        return (await self.call_endpoint('wthr_satlit_info_service_get_gk2a_wv_all', params, use_sample=use_sample))
 
-    def wthr_satlit_info_service_get_gk2a_ir_area(
+    async def wthr_satlit_info_service_get_gk2a_ir_area(
         self,
         *,
         use_sample: bool = False,
@@ -10402,9 +10367,9 @@ Path:
 /api/typ02/openApi/WthrSatlitInfoService/getGk2aIrArea
 파라미터: pageNo, numOfRows,
 dataType, dateTime, waveType, unitType, dongCode"""
-        return self.call_endpoint('wthr_satlit_info_service_get_gk2a_ir_area', params, use_sample=use_sample)
+        return (await self.call_endpoint('wthr_satlit_info_service_get_gk2a_ir_area', params, use_sample=use_sample))
 
-    def wthr_satlit_info_service_get_gk2a_nr_area(
+    async def wthr_satlit_info_service_get_gk2a_nr_area(
         self,
         *,
         use_sample: bool = False,
@@ -10416,9 +10381,9 @@ Path:
 /api/typ02/openApi/WthrSatlitInfoService/getGk2aNrArea
 파라미터: pageNo, numOfRows,
 dataType, dateTime, waveType, unitType, dongCode"""
-        return self.call_endpoint('wthr_satlit_info_service_get_gk2a_nr_area', params, use_sample=use_sample)
+        return (await self.call_endpoint('wthr_satlit_info_service_get_gk2a_nr_area', params, use_sample=use_sample))
 
-    def wthr_satlit_info_service_get_gk2a_sw_area(
+    async def wthr_satlit_info_service_get_gk2a_sw_area(
         self,
         *,
         use_sample: bool = False,
@@ -10430,9 +10395,9 @@ Path:
 /api/typ02/openApi/WthrSatlitInfoService/getGk2aSwArea
 파라미터: pageNo, numOfRows,
 dataType, dateTime, waveType, unitType, dongCode"""
-        return self.call_endpoint('wthr_satlit_info_service_get_gk2a_sw_area', params, use_sample=use_sample)
+        return (await self.call_endpoint('wthr_satlit_info_service_get_gk2a_sw_area', params, use_sample=use_sample))
 
-    def wthr_satlit_info_service_get_gk2a_vi_area(
+    async def wthr_satlit_info_service_get_gk2a_vi_area(
         self,
         *,
         use_sample: bool = False,
@@ -10444,9 +10409,9 @@ Path:
 /api/typ02/openApi/WthrSatlitInfoService/getGk2aViArea
 파라미터: pageNo, numOfRows,
 dataType, dateTime, waveType, unitType, dongCode"""
-        return self.call_endpoint('wthr_satlit_info_service_get_gk2a_vi_area', params, use_sample=use_sample)
+        return (await self.call_endpoint('wthr_satlit_info_service_get_gk2a_vi_area', params, use_sample=use_sample))
 
-    def wthr_satlit_info_service_get_gk2a_wv_area(
+    async def wthr_satlit_info_service_get_gk2a_wv_area(
         self,
         *,
         use_sample: bool = False,
@@ -10458,9 +10423,9 @@ Path:
 /api/typ02/openApi/WthrSatlitInfoService/getGk2aWvArea
 파라미터: pageNo, numOfRows,
 dataType, dateTime, waveType, unitType, dongCode"""
-        return self.call_endpoint('wthr_satlit_info_service_get_gk2a_wv_area', params, use_sample=use_sample)
+        return (await self.call_endpoint('wthr_satlit_info_service_get_gk2a_wv_area', params, use_sample=use_sample))
 
-    def sat_nph_gk2a_img(
+    async def sat_nph_gk2a_img(
         self,
         *,
         use_sample: bool = False,
@@ -10471,9 +10436,9 @@ dataType, dateTime, waveType, unitType, dongCode"""
 Path: /api/typ03/cgi/sat/nph-gk2a_img
 파라미터: tm, obs, map, grid,
 legend, size, itv, zoom_level, zoom_x, zoom_y, gov"""
-        return self.call_endpoint('sat_nph_gk2a_img', params, use_sample=use_sample)
+        return (await self.call_endpoint('sat_nph_gk2a_img', params, use_sample=use_sample))
 
-    def sat_nph_gk2a_imgp(
+    async def sat_nph_gk2a_imgp(
         self,
         *,
         use_sample: bool = False,
@@ -10488,9 +10453,9 @@ zoom_level, zoom_rate, zoom_x, zoom_y, auto_man, mode, umove, fmove, dmove, bmov
 winnum, rand, size, an_frn, an_itv, river, road, city, gis_auto, stnname, ctrl,
 dataDtlCd, data1, data2, data3, overlay, color, effect, height, qpf, ef, band1, legend,
 scn, STARTX, STARTY, ENDX, ENDY, ZOOMLVL, selWs, tm, tm_st, tm_ed, tm2"""
-        return self.call_endpoint('sat_nph_gk2a_imgp', params, use_sample=use_sample)
+        return (await self.call_endpoint('sat_nph_gk2a_imgp', params, use_sample=use_sample))
 
-    def gk2a_latlon_api(
+    async def gk2a_latlon_api(
         self,
         *,
         use_sample: bool = False,
@@ -10501,9 +10466,9 @@ scn, STARTX, STARTY, ENDX, ENDY, ZOOMLVL, selWs, tm, tm_st, tm_ed, tm2"""
 Path: /api/typ01/cgi-bin/url/nph-
 gk2a_latlon_api
 파라미터: area, grid, latlon, disp"""
-        return self.call_endpoint('gk2a_latlon_api', params, use_sample=use_sample)
+        return (await self.call_endpoint('gk2a_latlon_api', params, use_sample=use_sample))
 
-    def gk2a_latlon_file_down(
+    async def gk2a_latlon_file_down(
         self,
         *,
         use_sample: bool = False,
@@ -10514,9 +10479,9 @@ gk2a_latlon_api
 Path:
 /api/typ01/url/gk2a_latlon_file_down.php
 파라미터: area, grid"""
-        return self.call_endpoint('gk2a_latlon_file_down', params, use_sample=use_sample)
+        return (await self.call_endpoint('gk2a_latlon_file_down', params, use_sample=use_sample))
 
-    def vi004_ea_data(
+    async def vi004_ea_data(
         self,
         *,
         use_sample: bool = False,
@@ -10527,9 +10492,9 @@ Path:
 Path:
 /api/typ05/api/GK2A/LE1B/VI004/EA/data
 파라미터: date"""
-        return self.call_endpoint('vi004_ea_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('vi004_ea_data', params, use_sample=use_sample))
 
-    def vi004_ea_data_list(
+    async def vi004_ea_data_list(
         self,
         *,
         use_sample: bool = False,
@@ -10540,9 +10505,9 @@ Path:
 Path:
 /api/typ05/api/GK2A/LE1B/VI004/EA/dataList
 파라미터: sDate, eDate"""
-        return self.call_endpoint('vi004_ea_data_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('vi004_ea_data_list', params, use_sample=use_sample))
 
-    def vi004_ea_image_list(
+    async def vi004_ea_image_list(
         self,
         *,
         use_sample: bool = False,
@@ -10553,9 +10518,9 @@ Path:
 Path:
 /api/typ05/api/GK2A/LE1B/VI004/EA/imageList
 파라미터: sDate, eDate"""
-        return self.call_endpoint('vi004_ea_image_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('vi004_ea_image_list', params, use_sample=use_sample))
 
-    def sat_file_list_2(
+    async def sat_file_list_2(
         self,
         *,
         use_sample: bool = False,
@@ -10566,9 +10531,9 @@ Path:
 Path: /api/typ01/url/sat_file_list.php
 파라미터:
 sat, fmt, tm"""
-        return self.call_endpoint('sat_file_list_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sat_file_list_2', params, use_sample=use_sample))
 
-    def sat_data(
+    async def sat_data(
         self,
         *,
         use_sample: bool = False,
@@ -10579,9 +10544,9 @@ sat, fmt, tm"""
 Path: /api/typ01/cgi-bin/url/nph-sat_data
 파라미터: sat, chn, tm,
 help"""
-        return self.call_endpoint('sat_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('sat_data', params, use_sample=use_sample))
 
-    def coms_pnt(
+    async def coms_pnt(
         self,
         *,
         use_sample: bool = False,
@@ -10592,9 +10557,9 @@ help"""
 Path: /api/typ01/cgi-bin/url/nph-coms_pnt
 파라미터:
 tm1, tm2, obs, lon, lat, help"""
-        return self.call_endpoint('coms_pnt', params, use_sample=use_sample)
+        return (await self.call_endpoint('coms_pnt', params, use_sample=use_sample))
 
-    def coms_pnt_vars(
+    async def coms_pnt_vars(
         self,
         *,
         use_sample: bool = False,
@@ -10604,9 +10569,9 @@ tm1, tm2, obs, lon, lat, help"""
 
 Path: /api/typ01/url/coms_pnt_vars.php
 파라미터: tm1, tm2, lon, lat, help"""
-        return self.call_endpoint('coms_pnt_vars', params, use_sample=use_sample)
+        return (await self.call_endpoint('coms_pnt_vars', params, use_sample=use_sample))
 
-    def coms_stns(
+    async def coms_stns(
         self,
         *,
         use_sample: bool = False,
@@ -10616,9 +10581,9 @@ Path: /api/typ01/url/coms_pnt_vars.php
 
 Path: /api/typ01/cgi-bin/url/nph-coms_stns
 파라미터: tm1, tm2, obs, stn, help"""
-        return self.call_endpoint('coms_stns', params, use_sample=use_sample)
+        return (await self.call_endpoint('coms_stns', params, use_sample=use_sample))
 
-    def coms_stns_vars(
+    async def coms_stns_vars(
         self,
         *,
         use_sample: bool = False,
@@ -10628,9 +10593,9 @@ Path: /api/typ01/cgi-bin/url/nph-coms_stns
 
 Path: /api/typ01/url/coms_stns_vars.php
 파라미터: tm1, tm2, stn, help"""
-        return self.call_endpoint('coms_stns_vars', params, use_sample=use_sample)
+        return (await self.call_endpoint('coms_stns_vars', params, use_sample=use_sample))
 
-    def coms_stn_ca(
+    async def coms_stn_ca(
         self,
         *,
         use_sample: bool = False,
@@ -10641,9 +10606,9 @@ Path: /api/typ01/url/coms_stns_vars.php
 Path: /api/typ01/cgi-bin/url/nph-coms_stn_ca
 파라미터: tm, range,
 help"""
-        return self.call_endpoint('coms_stn_ca', params, use_sample=use_sample)
+        return (await self.call_endpoint('coms_stn_ca', params, use_sample=use_sample))
 
-    def sat_coms_obs_file(
+    async def sat_coms_obs_file(
         self,
         *,
         use_sample: bool = False,
@@ -10654,9 +10619,9 @@ help"""
 Path: /api/typ04/url/sat_coms_obs_file.php
 파라미터: tm,
 ch, map"""
-        return self.call_endpoint('sat_coms_obs_file', params, use_sample=use_sample)
+        return (await self.call_endpoint('sat_coms_obs_file', params, use_sample=use_sample))
 
-    def eqk_now(
+    async def eqk_now(
         self,
         *,
         use_sample: bool = False,
@@ -10666,9 +10631,9 @@ ch, map"""
 
 Path: /api/typ01/url/eqk_now.php
 파라미터: tm, disp, help"""
-        return self.call_endpoint('eqk_now', params, use_sample=use_sample)
+        return (await self.call_endpoint('eqk_now', params, use_sample=use_sample))
 
-    def eqk_list(
+    async def eqk_list(
         self,
         *,
         use_sample: bool = False,
@@ -10678,9 +10643,9 @@ Path: /api/typ01/url/eqk_now.php
 
 Path: /api/typ01/url/eqk_list.php
 파라미터: tm1, tm2, disp, help"""
-        return self.call_endpoint('eqk_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('eqk_list', params, use_sample=use_sample))
 
-    def eqk_info_service_get_eqk_msg_list(
+    async def eqk_info_service_get_eqk_msg_list(
         self,
         *,
         use_sample: bool = False,
@@ -10690,9 +10655,9 @@ Path: /api/typ01/url/eqk_list.php
 
 Path: /api/typ02/openApi/EqkInfoService/getEqkMsgList
 파라미터: pageNo, numOfRows, dataType, fromTmFc, toTmFc"""
-        return self.call_endpoint('eqk_info_service_get_eqk_msg_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('eqk_info_service_get_eqk_msg_list', params, use_sample=use_sample))
 
-    def eqk_info_service_get_eqk_msg(
+    async def eqk_info_service_get_eqk_msg(
         self,
         *,
         use_sample: bool = False,
@@ -10703,9 +10668,9 @@ Path: /api/typ02/openApi/EqkInfoService/getEqkMsgList
 Path: /api/typ02/openApi/EqkInfoService/getEqkMsg
 파라미터:
 pageNo, numOfRows, dataType, fromTmFc, toTmFc"""
-        return self.call_endpoint('eqk_info_service_get_eqk_msg', params, use_sample=use_sample)
+        return (await self.call_endpoint('eqk_info_service_get_eqk_msg', params, use_sample=use_sample))
 
-    def eqk_url_new_noti_eqk(
+    async def eqk_url_new_noti_eqk(
         self,
         *,
         use_sample: bool = False,
@@ -10716,9 +10681,9 @@ pageNo, numOfRows, dataType, fromTmFc, toTmFc"""
 Path:
 /api/typ09/url/eqk/urlNewNotiEqk.do
 파라미터: orderTy, orderCm"""
-        return self.call_endpoint('eqk_url_new_noti_eqk', params, use_sample=use_sample)
+        return (await self.call_endpoint('eqk_url_new_noti_eqk', params, use_sample=use_sample))
 
-    def eqk_url_new_noti_eqk_2(
+    async def eqk_url_new_noti_eqk_2(
         self,
         *,
         use_sample: bool = False,
@@ -10729,9 +10694,9 @@ Path:
 Path: /api/typ09/url/eqk/urlNewNotiEqk.do
 파라미터:
 orderTy, frDate, laDate, msgCode, cntDiv, arDiv, eqArCd, nkDiv"""
-        return self.call_endpoint('eqk_url_new_noti_eqk_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('eqk_url_new_noti_eqk_2', params, use_sample=use_sample))
 
-    def eqk_url_sec_eqk_list(
+    async def eqk_url_sec_eqk_list(
         self,
         *,
         use_sample: bool = False,
@@ -10742,9 +10707,9 @@ orderTy, frDate, laDate, msgCode, cntDiv, arDiv, eqArCd, nkDiv"""
 Path: /api/typ09/url/eqk/urlSecEqkList.do
 파라미터:
 orderTy, mTeqId, frDate, laDate, afDiv, frMagMl, laMagMl, type"""
-        return self.call_endpoint('eqk_url_sec_eqk_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('eqk_url_sec_eqk_list', params, use_sample=use_sample))
 
-    def tsnm_url_tsnm_list(
+    async def tsnm_url_tsnm_list(
         self,
         *,
         use_sample: bool = False,
@@ -10754,9 +10719,9 @@ orderTy, mTeqId, frDate, laDate, afDiv, frMagMl, laMagMl, type"""
 
 Path: /api/typ09/url/tsnm/urlTsnmList.do
 파라미터: orderTy, orderCm"""
-        return self.call_endpoint('tsnm_url_tsnm_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('tsnm_url_tsnm_list', params, use_sample=use_sample))
 
-    def tsnm_url_tsnm_list_2(
+    async def tsnm_url_tsnm_list_2(
         self,
         *,
         use_sample: bool = False,
@@ -10767,9 +10732,9 @@ Path: /api/typ09/url/tsnm/urlTsnmList.do
 Path: /api/typ09/url/tsnm/urlTsnmList.do
 파라미터:
 orderTy, frDate, laDate"""
-        return self.call_endpoint('tsnm_url_tsnm_list_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('tsnm_url_tsnm_list_2', params, use_sample=use_sample))
 
-    def eqk_info_service_get_tsunami_msg_list(
+    async def eqk_info_service_get_tsunami_msg_list(
         self,
         *,
         use_sample: bool = False,
@@ -10781,9 +10746,9 @@ Path:
 /api/typ02/openApi/EqkInfoService/getTsunamiMsgList
 파라미터: pageNo, numOfRows, dataType,
 fromTmFc, toTmFc"""
-        return self.call_endpoint('eqk_info_service_get_tsunami_msg_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('eqk_info_service_get_tsunami_msg_list', params, use_sample=use_sample))
 
-    def eqk_info_service_get_tsunami_msg(
+    async def eqk_info_service_get_tsunami_msg(
         self,
         *,
         use_sample: bool = False,
@@ -10793,9 +10758,9 @@ fromTmFc, toTmFc"""
 
 Path: /api/typ02/openApi/EqkInfoService/getTsunamiMsg
 파라미터: pageNo, numOfRows, dataType, fromTmFc, toTmFc"""
-        return self.call_endpoint('eqk_info_service_get_tsunami_msg', params, use_sample=use_sample)
+        return (await self.call_endpoint('eqk_info_service_get_tsunami_msg', params, use_sample=use_sample))
 
-    def volc_select_volc_info_list(
+    async def volc_select_volc_info_list(
         self,
         *,
         use_sample: bool = False,
@@ -10806,9 +10771,9 @@ Path: /api/typ02/openApi/EqkInfoService/getTsunamiMsg
 Path:
 /api/typ09/url/volc/selectVolcInfoList.do
 파라미터: orderTy, orderCm"""
-        return self.call_endpoint('volc_select_volc_info_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('volc_select_volc_info_list', params, use_sample=use_sample))
 
-    def volc_select_volc_info_list_2(
+    async def volc_select_volc_info_list_2(
         self,
         *,
         use_sample: bool = False,
@@ -10818,9 +10783,9 @@ Path:
 
 Path: /api/typ09/url/volc/selectVolcInfoList.do
 파라미터: orderTy, frDate, laDate"""
-        return self.call_endpoint('volc_select_volc_info_list_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('volc_select_volc_info_list_2', params, use_sample=use_sample))
 
-    def typ_lst(
+    async def typ_lst(
         self,
         *,
         use_sample: bool = False,
@@ -10830,9 +10795,9 @@ Path: /api/typ09/url/volc/selectVolcInfoList.do
 
 Path: /api/typ01/url/typ_lst.php
 파라미터: YY, disp, help"""
-        return self.call_endpoint('typ_lst', params, use_sample=use_sample)
+        return (await self.call_endpoint('typ_lst', params, use_sample=use_sample))
 
-    def typ_data(
+    async def typ_data(
         self,
         *,
         use_sample: bool = False,
@@ -10843,9 +10808,9 @@ Path: /api/typ01/url/typ_lst.php
 Path: /api/typ01/url/typ_data.php
 파라미터: YY, typ, seq,
 mode, disp, help"""
-        return self.call_endpoint('typ_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('typ_data', params, use_sample=use_sample))
 
-    def typ_now(
+    async def typ_now(
         self,
         *,
         use_sample: bool = False,
@@ -10856,9 +10821,9 @@ mode, disp, help"""
 Path: /api/typ01/url/typ_now.php
 파라미터: tm, mode,
 disp, help"""
-        return self.call_endpoint('typ_now', params, use_sample=use_sample)
+        return (await self.call_endpoint('typ_now', params, use_sample=use_sample))
 
-    def sfc_yearly_info_service_get_typhoon_list(
+    async def sfc_yearly_info_service_get_typhoon_list(
         self,
         *,
         use_sample: bool = False,
@@ -10870,9 +10835,9 @@ Path:
 /api/typ02/openApi/SfcYearlyInfoService/getTyphoonList
 파라미터: pageNo, numOfRows,
 dataType, year"""
-        return self.call_endpoint('sfc_yearly_info_service_get_typhoon_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_yearly_info_service_get_typhoon_list', params, use_sample=use_sample))
 
-    def td_lst(
+    async def td_lst(
         self,
         *,
         use_sample: bool = False,
@@ -10882,9 +10847,9 @@ dataType, year"""
 
 Path: /api/typ01/url/td_lst.php
 파라미터: YY, disp, help"""
-        return self.call_endpoint('td_lst', params, use_sample=use_sample)
+        return (await self.call_endpoint('td_lst', params, use_sample=use_sample))
 
-    def td_data(
+    async def td_data(
         self,
         *,
         use_sample: bool = False,
@@ -10895,9 +10860,9 @@ Path: /api/typ01/url/td_lst.php
 Path: /api/typ01/url/td_data.php
 파라미터: YY, td,
 seq, mode, disp, help"""
-        return self.call_endpoint('td_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('td_data', params, use_sample=use_sample))
 
-    def td_now(
+    async def td_now(
         self,
         *,
         use_sample: bool = False,
@@ -10908,9 +10873,9 @@ seq, mode, disp, help"""
 Path: /api/typ01/url/td_now.php
 파라미터: tm,
 mode, disp, help"""
-        return self.call_endpoint('td_now', params, use_sample=use_sample)
+        return (await self.call_endpoint('td_now', params, use_sample=use_sample))
 
-    def typ_besttrack(
+    async def typ_besttrack(
         self,
         *,
         use_sample: bool = False,
@@ -10921,9 +10886,9 @@ mode, disp, help"""
 Path: /api/typ01/url/typ_besttrack.php
 파라미터: year, grade,
 tcid, help"""
-        return self.call_endpoint('typ_besttrack', params, use_sample=use_sample)
+        return (await self.call_endpoint('typ_besttrack', params, use_sample=use_sample))
 
-    def nwp_vars_down(
+    async def nwp_vars_down(
         self,
         *,
         use_sample: bool = False,
@@ -10933,9 +10898,9 @@ tcid, help"""
 
 Path: /api/typ06/url/nwp_vars_down.php
 파라미터: nwp, sub, vars, pres, tmfc, ef, dataType"""
-        return self.call_endpoint('nwp_vars_down', params, use_sample=use_sample)
+        return (await self.call_endpoint('nwp_vars_down', params, use_sample=use_sample))
 
-    def kim_grib_xy_txt1(
+    async def kim_grib_xy_txt1(
         self,
         *,
         use_sample: bool = False,
@@ -10946,9 +10911,9 @@ Path: /api/typ06/url/nwp_vars_down.php
 Path: /api/typ06/cgi-bin/url/nph-
 kim_grib_xy_txt1
 파라미터: group, nwp, data, varn, level, tmfc, hf, disp"""
-        return self.call_endpoint('kim_grib_xy_txt1', params, use_sample=use_sample)
+        return (await self.call_endpoint('kim_grib_xy_txt1', params, use_sample=use_sample))
 
-    def kim_grib_xz_txt1(
+    async def kim_grib_xz_txt1(
         self,
         *,
         use_sample: bool = False,
@@ -10958,9 +10923,9 @@ kim_grib_xy_txt1
 
 Path: /api/typ06/cgi-bin/url/nph-kim_grib_xz_txt1
 파라미터: group, nwp, data, varn, lvl_lst, tmfc, hf, lon1, lat1, lon2, lat2, disp"""
-        return self.call_endpoint('kim_grib_xz_txt1', params, use_sample=use_sample)
+        return (await self.call_endpoint('kim_grib_xz_txt1', params, use_sample=use_sample))
 
-    def kim_grib_xz_txt1_2(
+    async def kim_grib_xz_txt1_2(
         self,
         *,
         use_sample: bool = False,
@@ -10972,9 +10937,9 @@ Path: /api/typ06/cgi-bin/url/nph-
 kim_grib_xz_txt1
 파라미터: group, nwp, data, varn, lvl_lst, tmfc, hf, map, lon1, lat1, lon2,
 lat2, disp"""
-        return self.call_endpoint('kim_grib_xz_txt1_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('kim_grib_xz_txt1_2', params, use_sample=use_sample))
 
-    def kim_grib_pt_txt1(
+    async def kim_grib_pt_txt1(
         self,
         *,
         use_sample: bool = False,
@@ -10985,9 +10950,9 @@ lat2, disp"""
 Path: /api/typ06/cgi-bin/url/nph-
 kim_grib_pt_txt1
 파라미터: group, nwp, data, varn, tmfc, hf, X, Y, disp, help"""
-        return self.call_endpoint('kim_grib_pt_txt1', params, use_sample=use_sample)
+        return (await self.call_endpoint('kim_grib_pt_txt1', params, use_sample=use_sample))
 
-    def kim_grib_pt_txt1_2(
+    async def kim_grib_pt_txt1_2(
         self,
         *,
         use_sample: bool = False,
@@ -10998,9 +10963,9 @@ kim_grib_pt_txt1
 Path: /api/typ06/cgi-bin/url/nph-
 kim_grib_pt_txt1
 파라미터: group, nwp, data, varn, tmfc, hf, lon, lat, level, help"""
-        return self.call_endpoint('kim_grib_pt_txt1_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('kim_grib_pt_txt1_2', params, use_sample=use_sample))
 
-    def kim_grib_pt_tmfc(
+    async def kim_grib_pt_tmfc(
         self,
         *,
         use_sample: bool = False,
@@ -11012,9 +10977,9 @@ Path:
 /api/typ06/url/kim_grib_pt_tmfc.php
 파라미터: group, nwp, data, varn, tmfc, ef, X, Y, level,
 help"""
-        return self.call_endpoint('kim_grib_pt_tmfc', params, use_sample=use_sample)
+        return (await self.call_endpoint('kim_grib_pt_tmfc', params, use_sample=use_sample))
 
-    def kim_grib_pt_tmef(
+    async def kim_grib_pt_tmef(
         self,
         *,
         use_sample: bool = False,
@@ -11026,9 +10991,9 @@ Path:
 /api/typ06/url/kim_grib_pt_tmef.php
 파라미터: group, nwp, data, varn, tmef, lon, lat, level,
 help"""
-        return self.call_endpoint('kim_grib_pt_tmef', params, use_sample=use_sample)
+        return (await self.call_endpoint('kim_grib_pt_tmef', params, use_sample=use_sample))
 
-    def kim_model_info_service_get_kim_ldaps_unis_all(
+    async def kim_model_info_service_get_kim_ldaps_unis_all(
         self,
         *,
         use_sample: bool = False,
@@ -11040,9 +11005,9 @@ Path:
 /api/typ02/openApi/KIMModelInfoService/getKIMLdapsUnisAll
 파라미터: baseTime, leadHour,
 dataTypeCd, dataType"""
-        return self.call_endpoint('kim_model_info_service_get_kim_ldaps_unis_all', params, use_sample=use_sample)
+        return (await self.call_endpoint('kim_model_info_service_get_kim_ldaps_unis_all', params, use_sample=use_sample))
 
-    def kim_model_info_service_get_kim_rdaps_unis_all(
+    async def kim_model_info_service_get_kim_rdaps_unis_all(
         self,
         *,
         use_sample: bool = False,
@@ -11054,9 +11019,9 @@ Path:
 /api/typ02/openApi/KIMModelInfoService/getKIMRdapsUnisAll
 파라미터: baseTime, leadHour,
 dataTypeCd, dataType"""
-        return self.call_endpoint('kim_model_info_service_get_kim_rdaps_unis_all', params, use_sample=use_sample)
+        return (await self.call_endpoint('kim_model_info_service_get_kim_rdaps_unis_all', params, use_sample=use_sample))
 
-    def kim_model_info_service_get_kim_ldaps_unis_area(
+    async def kim_model_info_service_get_kim_ldaps_unis_area(
         self,
         *,
         use_sample: bool = False,
@@ -11068,9 +11033,9 @@ Path:
 /api/typ02/openApi/KIMModelInfoService/getKIMLdapsUnisArea
 파라미터: baseTime, dataTypeCd,
 dataType, dongCode"""
-        return self.call_endpoint('kim_model_info_service_get_kim_ldaps_unis_area', params, use_sample=use_sample)
+        return (await self.call_endpoint('kim_model_info_service_get_kim_ldaps_unis_area', params, use_sample=use_sample))
 
-    def kim_model_info_service_get_kim_rdaps_unis_area(
+    async def kim_model_info_service_get_kim_rdaps_unis_area(
         self,
         *,
         use_sample: bool = False,
@@ -11082,9 +11047,9 @@ Path:
 /api/typ02/openApi/KIMModelInfoService/getKIMRdapsUnisArea
 파라미터: baseTime, dataTypeCd,
 dataType, dongCode"""
-        return self.call_endpoint('kim_model_info_service_get_kim_rdaps_unis_area', params, use_sample=use_sample)
+        return (await self.call_endpoint('kim_model_info_service_get_kim_rdaps_unis_area', params, use_sample=use_sample))
 
-    def kim_nc_xy_txt1(
+    async def kim_nc_xy_txt1(
         self,
         *,
         use_sample: bool = False,
@@ -11096,9 +11061,9 @@ Path: /api/typ06/cgi-
 bin/url/nph-kim_nc_xy_txt1
 파라미터: group, nwp, data, name, map, tmfc, hf, disp, help,
 level"""
-        return self.call_endpoint('kim_nc_xy_txt1', params, use_sample=use_sample)
+        return (await self.call_endpoint('kim_nc_xy_txt1', params, use_sample=use_sample))
 
-    def kim_nc_xy_txt1_2(
+    async def kim_nc_xy_txt1_2(
         self,
         *,
         use_sample: bool = False,
@@ -11110,9 +11075,9 @@ Path: /api/typ06/cgi-
 bin/url/nph-kim_nc_xy_txt1
 파라미터: group, nwp, data, name, map, sub, sm, tmfc, hf, disp,
 help, level"""
-        return self.call_endpoint('kim_nc_xy_txt1_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('kim_nc_xy_txt1_2', params, use_sample=use_sample))
 
-    def kim_nc_pt_txt1(
+    async def kim_nc_pt_txt1(
         self,
         *,
         use_sample: bool = False,
@@ -11123,9 +11088,9 @@ help, level"""
 Path: /api/typ06/cgi-
 bin/url/nph-kim_nc_pt_txt1
 파라미터: group, nwp, data, name, tmfc, hf, disp, help, X, Y"""
-        return self.call_endpoint('kim_nc_pt_txt1', params, use_sample=use_sample)
+        return (await self.call_endpoint('kim_nc_pt_txt1', params, use_sample=use_sample))
 
-    def kim_nc_pt_txt1_2(
+    async def kim_nc_pt_txt1_2(
         self,
         *,
         use_sample: bool = False,
@@ -11136,9 +11101,9 @@ bin/url/nph-kim_nc_pt_txt1
 Path: /api/typ06/cgi-
 bin/url/nph-kim_nc_pt_txt1
 파라미터: group, nwp, data, name, tmfc, hf, disp, help, lat, lon"""
-        return self.call_endpoint('kim_nc_pt_txt1_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('kim_nc_pt_txt1_2', params, use_sample=use_sample))
 
-    def kim_nc_xy_txt2(
+    async def kim_nc_xy_txt2(
         self,
         *,
         use_sample: bool = False,
@@ -11150,9 +11115,9 @@ Path: /api/typ01/cgi-
 bin/url/nph-kim_nc_xy_txt2
 파라미터: group, nwp, data, name, map, tmfc, hf, disp, help,
 level"""
-        return self.call_endpoint('kim_nc_xy_txt2', params, use_sample=use_sample)
+        return (await self.call_endpoint('kim_nc_xy_txt2', params, use_sample=use_sample))
 
-    def kim_nc_xy_txt2_2(
+    async def kim_nc_xy_txt2_2(
         self,
         *,
         use_sample: bool = False,
@@ -11164,9 +11129,9 @@ Path: /api/typ01/cgi-
 bin/url/nph-kim_nc_xy_txt2
 파라미터: group, nwp, data, name, map, sub, sm, tmfc, hf, disp,
 help, level"""
-        return self.call_endpoint('kim_nc_xy_txt2_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('kim_nc_xy_txt2_2', params, use_sample=use_sample))
 
-    def kim_nc_pt_txt2(
+    async def kim_nc_pt_txt2(
         self,
         *,
         use_sample: bool = False,
@@ -11177,9 +11142,9 @@ help, level"""
 Path: /api/typ01/cgi-
 bin/url/nph-kim_nc_pt_txt2
 파라미터: group, nwp, data, name, tmfc, hf, disp, help, X, Y"""
-        return self.call_endpoint('kim_nc_pt_txt2', params, use_sample=use_sample)
+        return (await self.call_endpoint('kim_nc_pt_txt2', params, use_sample=use_sample))
 
-    def kim_nc_pt_txt2_2(
+    async def kim_nc_pt_txt2_2(
         self,
         *,
         use_sample: bool = False,
@@ -11190,9 +11155,9 @@ bin/url/nph-kim_nc_pt_txt2
 Path: /api/typ01/cgi-
 bin/url/nph-kim_nc_pt_txt2
 파라미터: group, nwp, data, name, tmfc, hf, disp, help, lat, lon"""
-        return self.call_endpoint('kim_nc_pt_txt2_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('kim_nc_pt_txt2_2', params, use_sample=use_sample))
 
-    def marine_large_zone(
+    async def marine_large_zone(
         self,
         *,
         use_sample: bool = False,
@@ -11203,9 +11168,9 @@ bin/url/nph-kim_nc_pt_txt2
 Path:
 /api/typ06/url/marine_large_zone.php
 파라미터: tma_fc, tma_ef, Lzone, help, disp"""
-        return self.call_endpoint('marine_large_zone', params, use_sample=use_sample)
+        return (await self.call_endpoint('marine_large_zone', params, use_sample=use_sample))
 
-    def marine_small_zone(
+    async def marine_small_zone(
         self,
         *,
         use_sample: bool = False,
@@ -11216,9 +11181,9 @@ Path:
 Path:
 /api/typ06/url/marine_small_zone.php
 파라미터: tma_fc, tma_ef, Lzone, Szone, disp, help"""
-        return self.call_endpoint('marine_small_zone', params, use_sample=use_sample)
+        return (await self.call_endpoint('marine_small_zone', params, use_sample=use_sample))
 
-    def nwp_latlon_api(
+    async def nwp_latlon_api(
         self,
         *,
         use_sample: bool = False,
@@ -11229,9 +11194,9 @@ Path:
 Path: /api/typ01/cgi-bin/url/nph-
 nwp_latlon_api
 파라미터: nwp, latlon, disp"""
-        return self.call_endpoint('nwp_latlon_api', params, use_sample=use_sample)
+        return (await self.call_endpoint('nwp_latlon_api', params, use_sample=use_sample))
 
-    def nwp_latlon_file_down(
+    async def nwp_latlon_file_down(
         self,
         *,
         use_sample: bool = False,
@@ -11242,9 +11207,9 @@ nwp_latlon_api
 Path:
 /api/typ01/url/nwp_latlon_file_down.php
 파라미터: nwp"""
-        return self.call_endpoint('nwp_latlon_file_down', params, use_sample=use_sample)
+        return (await self.call_endpoint('nwp_latlon_file_down', params, use_sample=use_sample))
 
-    def nwp_header(
+    async def nwp_header(
         self,
         *,
         use_sample: bool = False,
@@ -11255,9 +11220,9 @@ Path:
 Path:
 /api/typ06/cgi-bin/url/nph-nwp_header
 파라미터: model, nwp, sub, tmfc, ef, help"""
-        return self.call_endpoint('nwp_header', params, use_sample=use_sample)
+        return (await self.call_endpoint('nwp_header', params, use_sample=use_sample))
 
-    def um_grib_xy_txt1(
+    async def um_grib_xy_txt1(
         self,
         *,
         use_sample: bool = False,
@@ -11268,9 +11233,9 @@ Path:
 Path: /api/typ06/cgi-bin/url/nph-
 um_grib_xy_txt1
 파라미터: group, nwp, data, varn, level, tmfc, hf, disp"""
-        return self.call_endpoint('um_grib_xy_txt1', params, use_sample=use_sample)
+        return (await self.call_endpoint('um_grib_xy_txt1', params, use_sample=use_sample))
 
-    def um_grib_xy_txt1_2(
+    async def um_grib_xy_txt1_2(
         self,
         *,
         use_sample: bool = False,
@@ -11281,9 +11246,9 @@ um_grib_xy_txt1
 Path: /api/typ06/cgi-bin/url/nph-
 um_grib_xy_txt1
 파라미터: group, nwp, data, varn, level, map, sub, sm, tmfc, hf, disp"""
-        return self.call_endpoint('um_grib_xy_txt1_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('um_grib_xy_txt1_2', params, use_sample=use_sample))
 
-    def um_grib_xy_txt1_3(
+    async def um_grib_xy_txt1_3(
         self,
         *,
         use_sample: bool = False,
@@ -11294,9 +11259,9 @@ um_grib_xy_txt1
 Path: /api/typ06/cgi-bin/url/nph-
 um_grib_xy_txt1
 파라미터: group, nwp, data, varn, level, map, sm, tmfc, hf, disp"""
-        return self.call_endpoint('um_grib_xy_txt1_3', params, use_sample=use_sample)
+        return (await self.call_endpoint('um_grib_xy_txt1_3', params, use_sample=use_sample))
 
-    def um_grib_xz_txt1(
+    async def um_grib_xz_txt1(
         self,
         *,
         use_sample: bool = False,
@@ -11308,9 +11273,9 @@ Path: /api/typ06/cgi-bin/url/nph-
 um_grib_xz_txt1
 파라미터: group, nwp, data, varn, lvl_lst, map, tmfc, hf, lon1, lat1, lon2,
 lat2, disp"""
-        return self.call_endpoint('um_grib_xz_txt1', params, use_sample=use_sample)
+        return (await self.call_endpoint('um_grib_xz_txt1', params, use_sample=use_sample))
 
-    def um_grib_pt_txt1(
+    async def um_grib_pt_txt1(
         self,
         *,
         use_sample: bool = False,
@@ -11321,9 +11286,9 @@ lat2, disp"""
 Path: /api/typ06/cgi-bin/url/nph-
 um_grib_pt_txt1
 파라미터: group, nwp, data, varn, tmfc, hf, X, Y, disp, help"""
-        return self.call_endpoint('um_grib_pt_txt1', params, use_sample=use_sample)
+        return (await self.call_endpoint('um_grib_pt_txt1', params, use_sample=use_sample))
 
-    def um_grib_pt_txt1_2(
+    async def um_grib_pt_txt1_2(
         self,
         *,
         use_sample: bool = False,
@@ -11335,9 +11300,9 @@ Path: /api/typ06/cgi-
 bin/url/nph-um_grib_pt_txt1
 파라미터: group, nwp, data, varn, tmfc, hf, level, X, Y, disp,
 help"""
-        return self.call_endpoint('um_grib_pt_txt1_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('um_grib_pt_txt1_2', params, use_sample=use_sample))
 
-    def um_grib_pt_txt1_3(
+    async def um_grib_pt_txt1_3(
         self,
         *,
         use_sample: bool = False,
@@ -11348,9 +11313,9 @@ help"""
 Path: /api/typ06/cgi-bin/url/nph-
 um_grib_pt_txt1
 파라미터: group, nwp, data, varn, tmfc, hf, lon, lat, disp, help"""
-        return self.call_endpoint('um_grib_pt_txt1_3', params, use_sample=use_sample)
+        return (await self.call_endpoint('um_grib_pt_txt1_3', params, use_sample=use_sample))
 
-    def um_grib_pt_tmfc(
+    async def um_grib_pt_tmfc(
         self,
         *,
         use_sample: bool = False,
@@ -11362,9 +11327,9 @@ Path:
 /api/typ06/url/um_grib_pt_tmfc.php
 파라미터: group, nwp, data, varn, tmfc, ef, X, Y, level,
 help"""
-        return self.call_endpoint('um_grib_pt_tmfc', params, use_sample=use_sample)
+        return (await self.call_endpoint('um_grib_pt_tmfc', params, use_sample=use_sample))
 
-    def um_grib_pt_tmef(
+    async def um_grib_pt_tmef(
         self,
         *,
         use_sample: bool = False,
@@ -11376,9 +11341,9 @@ Path:
 /api/typ06/url/um_grib_pt_tmef.php
 파라미터: group, nwp, data, varn, tmef, lon, lat, level,
 help"""
-        return self.call_endpoint('um_grib_pt_tmef', params, use_sample=use_sample)
+        return (await self.call_endpoint('um_grib_pt_tmef', params, use_sample=use_sample))
 
-    def nwp_grib_down(
+    async def nwp_grib_down(
         self,
         *,
         use_sample: bool = False,
@@ -11389,9 +11354,9 @@ help"""
 Path:
 /api/typ06/url/nwp_grib_down.php
 파라미터: group, nwp, data, varn, level, tmfc, hf"""
-        return self.call_endpoint('nwp_grib_down', params, use_sample=use_sample)
+        return (await self.call_endpoint('nwp_grib_down', params, use_sample=use_sample))
 
-    def nwp_model_info_service_get_ldaps_unis_all(
+    async def nwp_model_info_service_get_ldaps_unis_all(
         self,
         *,
         use_sample: bool = False,
@@ -11403,9 +11368,9 @@ Path:
 /api/typ02/openApi/NwpModelInfoService/getLdapsUnisAll
 파라미터: pageNo, numOfRows,
 dataType, baseTime, leadHour, dataTypeCd"""
-        return self.call_endpoint('nwp_model_info_service_get_ldaps_unis_all', params, use_sample=use_sample)
+        return (await self.call_endpoint('nwp_model_info_service_get_ldaps_unis_all', params, use_sample=use_sample))
 
-    def nwp_model_info_service_get_ldaps_unis_area(
+    async def nwp_model_info_service_get_ldaps_unis_area(
         self,
         *,
         use_sample: bool = False,
@@ -11417,9 +11382,9 @@ Path:
 /api/typ02/openApi/NwpModelInfoService/getLdapsUnisArea
 파라미터: pageNo, numOfRows,
 dataType, baseTime, dongCode, dataTypeCd"""
-        return self.call_endpoint('nwp_model_info_service_get_ldaps_unis_area', params, use_sample=use_sample)
+        return (await self.call_endpoint('nwp_model_info_service_get_ldaps_unis_area', params, use_sample=use_sample))
 
-    def nwp_model_info_service_get_rdaps_unis_all(
+    async def nwp_model_info_service_get_rdaps_unis_all(
         self,
         *,
         use_sample: bool = False,
@@ -11431,9 +11396,9 @@ Path:
 /api/typ02/openApi/NwpModelInfoService/getRdapsUnisAll
 파라미터: pageNo, numOfRows,
 dataType, baseTime, leadHour, dataTypeCd, dongCode"""
-        return self.call_endpoint('nwp_model_info_service_get_rdaps_unis_all', params, use_sample=use_sample)
+        return (await self.call_endpoint('nwp_model_info_service_get_rdaps_unis_all', params, use_sample=use_sample))
 
-    def nwp_model_info_service_get_rdaps_unis_area(
+    async def nwp_model_info_service_get_rdaps_unis_area(
         self,
         *,
         use_sample: bool = False,
@@ -11445,9 +11410,9 @@ Path:
 /api/typ02/openApi/NwpModelInfoService/getRdapsUnisArea
 파라미터: pageNo, numOfRows,
 dataType, baseTime, dongCode, dataTypeCd"""
-        return self.call_endpoint('nwp_model_info_service_get_rdaps_unis_area', params, use_sample=use_sample)
+        return (await self.call_endpoint('nwp_model_info_service_get_rdaps_unis_area', params, use_sample=use_sample))
 
-    def dfs_nph_qpf_ana_img(
+    async def dfs_nph_qpf_ana_img(
         self,
         *,
         use_sample: bool = False,
@@ -11458,9 +11423,9 @@ dataType, baseTime, dongCode, dataTypeCd"""
 Path: /api/typ03/cgi/dfs/nph-qpf_ana_img
 파라미터: eva, tm, qpf, ef,
 map, grid, legend, size, zoom_level, zoom_x, zoom_y, stn, x1, y1"""
-        return self.call_endpoint('dfs_nph_qpf_ana_img', params, use_sample=use_sample)
+        return (await self.call_endpoint('dfs_nph_qpf_ana_img', params, use_sample=use_sample))
 
-    def api_iwa_img_url_api_ret_recreate_img_url(
+    async def api_iwa_img_url_api_ret_recreate_img_url(
         self,
         *,
         use_sample: bool = False,
@@ -11472,9 +11437,9 @@ Path:
 /api/typ07/afsiwa/iwa/api/iwaImgUrlApi/retRecreateImgUrl.kfrm
 파라미터: analTime, isTyp,
 imageType, groupName, meta"""
-        return self.call_endpoint('api_iwa_img_url_api_ret_recreate_img_url', params, use_sample=use_sample)
+        return (await self.call_endpoint('api_iwa_img_url_api_ret_recreate_img_url', params, use_sample=use_sample))
 
-    def api_iwa_img_url_api_ret_composite2_img_url(
+    async def api_iwa_img_url_api_ret_composite2_img_url(
         self,
         *,
         use_sample: bool = False,
@@ -11485,9 +11450,9 @@ imageType, groupName, meta"""
 Path:
 /api/typ07/afsiwa/iwa/api/iwaImgUrlApi/retComposite2ImgUrl.kfrm
 파라미터: analTime, foreTime"""
-        return self.call_endpoint('api_iwa_img_url_api_ret_composite2_img_url', params, use_sample=use_sample)
+        return (await self.call_endpoint('api_iwa_img_url_api_ret_composite2_img_url', params, use_sample=use_sample))
 
-    def api_iwa_img_url_api_ret_composite1_img_url(
+    async def api_iwa_img_url_api_ret_composite1_img_url(
         self,
         *,
         use_sample: bool = False,
@@ -11498,9 +11463,9 @@ Path:
 Path:
 /api/typ07/afsiwa/iwa/api/iwaImgUrlApi/retComposite1ImgUrl.kfrm
 파라미터: analTime, foreTime"""
-        return self.call_endpoint('api_iwa_img_url_api_ret_composite1_img_url', params, use_sample=use_sample)
+        return (await self.call_endpoint('api_iwa_img_url_api_ret_composite1_img_url', params, use_sample=use_sample))
 
-    def api_iwa_img_url_api_ret_model_img_url(
+    async def api_iwa_img_url_api_ret_model_img_url(
         self,
         *,
         use_sample: bool = False,
@@ -11513,9 +11478,9 @@ Path:
 파라미터: modl, varGrp, var, lev,
 analTime, foreTime, PROJ, mapRange, ZOOMLVL, stLon, stLat, edLon, edLat, basicSmtLvl,
 basicTotSmtLvl, repDispCd, symblDispType, isRasterFillCheck, meta, symbl"""
-        return self.call_endpoint('api_iwa_img_url_api_ret_model_img_url', params, use_sample=use_sample)
+        return (await self.call_endpoint('api_iwa_img_url_api_ret_model_img_url', params, use_sample=use_sample))
 
-    def api_iwa_img_url_api_ret_fore_img_url(
+    async def api_iwa_img_url_api_ret_fore_img_url(
         self,
         *,
         use_sample: bool = False,
@@ -11528,9 +11493,9 @@ Path:
 파라미터: varGrp, var, modl, lev,
 analTime, foreTime, PROJ, ZOOMLVL, stLon, stLat, edLon, edLat, basicSmtLvl,
 basicTotSmtLvl, repDispCd, symblDispType, isRasterFillCheck"""
-        return self.call_endpoint('api_iwa_img_url_api_ret_fore_img_url', params, use_sample=use_sample)
+        return (await self.call_endpoint('api_iwa_img_url_api_ret_fore_img_url', params, use_sample=use_sample))
 
-    def api_iwa_img_url_api_ret_ens_img_url(
+    async def api_iwa_img_url_api_ret_ens_img_url(
         self,
         *,
         use_sample: bool = False,
@@ -11543,9 +11508,9 @@ Path:
 파라미터: modl, ensType, varGrp,
 var, mem, lev, analTime, foreTime, PROJ, ZOOMLVL, stLon, stLat, edLon, edLat,
 basicTotSmtLvl, repDispCd, symblDispType, isRasterFillCheck, meta, symbl"""
-        return self.call_endpoint('api_iwa_img_url_api_ret_ens_img_url', params, use_sample=use_sample)
+        return (await self.call_endpoint('api_iwa_img_url_api_ret_ens_img_url', params, use_sample=use_sample))
 
-    def api_iwa_img_url_api_ret_ocean_img_url(
+    async def api_iwa_img_url_api_ret_ocean_img_url(
         self,
         *,
         use_sample: bool = False,
@@ -11558,9 +11523,9 @@ Path:
 파라미터: modlGrp, modl, var,
 mem, lev, analTime, foreTime, PROJ, ZOOMLVL, stLon, stLat, edLon, edLat, basicTotSmtLvl,
 repDispCd, symblDispType, isRasterFillCheck, meta, symbl"""
-        return self.call_endpoint('api_iwa_img_url_api_ret_ocean_img_url', params, use_sample=use_sample)
+        return (await self.call_endpoint('api_iwa_img_url_api_ret_ocean_img_url', params, use_sample=use_sample))
 
-    def api_iwa_img_url_api_ret_crss_sctn_img_url(
+    async def api_iwa_img_url_api_ret_crss_sctn_img_url(
         self,
         *,
         use_sample: bool = False,
@@ -11573,9 +11538,9 @@ Path:
 파라미터: modelCd, variable,
 isFill3, analTime, foreTime, locationLon01, locationLat01, locationLon02, locationLat02,
 minPresAlt, maxPresAlt, log, width, height, layerInfo"""
-        return self.call_endpoint('api_iwa_img_url_api_ret_crss_sctn_img_url', params, use_sample=use_sample)
+        return (await self.call_endpoint('api_iwa_img_url_api_ret_crss_sctn_img_url', params, use_sample=use_sample))
 
-    def api_iwa_img_url_api_ret_back_map_url(
+    async def api_iwa_img_url_api_ret_back_map_url(
         self,
         *,
         use_sample: bool = False,
@@ -11587,9 +11552,9 @@ Path:
 /api/typ07/afsiwa/iwa/api/iwaImgUrlApi/retBackMapUrl.kfrm
 파라미터: type, projection,
 ZOOMLVL, stLon, stLat, edLon, edLat, meta"""
-        return self.call_endpoint('api_iwa_img_url_api_ret_back_map_url', params, use_sample=use_sample)
+        return (await self.call_endpoint('api_iwa_img_url_api_ret_back_map_url', params, use_sample=use_sample))
 
-    def api_iwa_img_url_api_ret_obs_img_url(
+    async def api_iwa_img_url_api_ret_obs_img_url(
         self,
         *,
         use_sample: bool = False,
@@ -11602,9 +11567,9 @@ Path:
 파라미터: obs, varGrp, var, lev,
 analTime, PROJ, ZOOMLVL, stLon, stLat, edLon, edLat, basicSmtLvl, basicTotSmtLvl,
 repDispCd, symblDispType, meta"""
-        return self.call_endpoint('api_iwa_img_url_api_ret_obs_img_url', params, use_sample=use_sample)
+        return (await self.call_endpoint('api_iwa_img_url_api_ret_obs_img_url', params, use_sample=use_sample))
 
-    def api_iwa_img_url_api_ret_mdl_sample_data_url(
+    async def api_iwa_img_url_api_ret_mdl_sample_data_url(
         self,
         *,
         use_sample: bool = False,
@@ -11617,9 +11582,9 @@ Path:
 파라미터: menuGrpCd, menu01,
 menu02, menu03, varListCd, vrtcLayrCd, analTime, foreTime, basicSmtLvl, location,
 project, meta"""
-        return self.call_endpoint('api_iwa_img_url_api_ret_mdl_sample_data_url', params, use_sample=use_sample)
+        return (await self.call_endpoint('api_iwa_img_url_api_ret_mdl_sample_data_url', params, use_sample=use_sample))
 
-    def api_iwa_img_url_api_ret_model_img_url_2(
+    async def api_iwa_img_url_api_ret_model_img_url_2(
         self,
         *,
         use_sample: bool = False,
@@ -11631,9 +11596,9 @@ Path: /api/typ07/afsiwa/iwa/api/iwaImgUrlApi/retModelImgUrl.kfrm
 파라미터:
 modl, varGrp, var, lev, analTime, foreTime, PROJ, ZOOMLVL, stLon, stLat, edLon, edLat,
 basicSmtLvl, basicTotSmtLvl, repDispCd, symblDispType, isRasterFillCheck, meta, symbl"""
-        return self.call_endpoint('api_iwa_img_url_api_ret_model_img_url_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('api_iwa_img_url_api_ret_model_img_url_2', params, use_sample=use_sample))
 
-    def api_iwa_img_url_api_ret_back_map_url_2(
+    async def api_iwa_img_url_api_ret_back_map_url_2(
         self,
         *,
         use_sample: bool = False,
@@ -11644,9 +11609,9 @@ basicSmtLvl, basicTotSmtLvl, repDispCd, symblDispType, isRasterFillCheck, meta, 
 Path: /api/typ07/afsiwa/iwa/api/iwaImgUrlApi/retBackMapUrl.kfrm
 파라미터:
 type, projection, ZOOMLVL, stLon, stLat, edLon, edLat, meta, mdl, basicSmtLvl"""
-        return self.call_endpoint('api_iwa_img_url_api_ret_back_map_url_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('api_iwa_img_url_api_ret_back_map_url_2', params, use_sample=use_sample))
 
-    def api_iwa_img_url_api_ret_grid_img(
+    async def api_iwa_img_url_api_ret_grid_img(
         self,
         *,
         use_sample: bool = False,
@@ -11658,9 +11623,9 @@ Path: /api/typ07/afsiwa/iwa/api/iwaImgUrlApi/retGridImg.kfrm
 파라미터:
 PROJ, ZOOMLVL, stLon, stLat, edLon, edLat, contourLineColor, contourLineDiv,
 contourLineThck, meta, mdl, basicSmtLvl"""
-        return self.call_endpoint('api_iwa_img_url_api_ret_grid_img', params, use_sample=use_sample)
+        return (await self.call_endpoint('api_iwa_img_url_api_ret_grid_img', params, use_sample=use_sample))
 
-    def wthr_chart_info_service_get_auxillary_chart(
+    async def wthr_chart_info_service_get_auxillary_chart(
         self,
         *,
         use_sample: bool = False,
@@ -11670,9 +11635,9 @@ contourLineThck, meta, mdl, basicSmtLvl"""
 
 Path: /api/typ02/openApi/WthrChartInfoService/getAuxillaryChart
 파라미터: pageNo, numOfRows, dataType, code1, code2, time"""
-        return self.call_endpoint('wthr_chart_info_service_get_auxillary_chart', params, use_sample=use_sample)
+        return (await self.call_endpoint('wthr_chart_info_service_get_auxillary_chart', params, use_sample=use_sample))
 
-    def wthr_chart_info_service_get_surface_chart(
+    async def wthr_chart_info_service_get_surface_chart(
         self,
         *,
         use_sample: bool = False,
@@ -11682,9 +11647,9 @@ Path: /api/typ02/openApi/WthrChartInfoService/getAuxillaryChart
 
 Path: /api/typ02/openApi/WthrChartInfoService/getSurfaceChart
 파라미터: pageNo, numOfRows, dataType, code, time"""
-        return self.call_endpoint('wthr_chart_info_service_get_surface_chart', params, use_sample=use_sample)
+        return (await self.call_endpoint('wthr_chart_info_service_get_surface_chart', params, use_sample=use_sample))
 
-    def fct_shrt_reg(
+    async def fct_shrt_reg(
         self,
         *,
         use_sample: bool = False,
@@ -11695,9 +11660,9 @@ Path: /api/typ02/openApi/WthrChartInfoService/getSurfaceChart
 Path: /api/typ01/url/fct_shrt_reg.php
 파라미터:
 tmfc"""
-        return self.call_endpoint('fct_shrt_reg', params, use_sample=use_sample)
+        return (await self.call_endpoint('fct_shrt_reg', params, use_sample=use_sample))
 
-    def fct_afs_ds(
+    async def fct_afs_ds(
         self,
         *,
         use_sample: bool = False,
@@ -11707,9 +11672,9 @@ tmfc"""
 
 Path: /api/typ01/url/fct_afs_ds.php
 파라미터: stn, tmfc1, tmfc2, disp, help"""
-        return self.call_endpoint('fct_afs_ds', params, use_sample=use_sample)
+        return (await self.call_endpoint('fct_afs_ds', params, use_sample=use_sample))
 
-    def fct_afs_dl(
+    async def fct_afs_dl(
         self,
         *,
         use_sample: bool = False,
@@ -11720,9 +11685,9 @@ Path: /api/typ01/url/fct_afs_ds.php
 Path: /api/typ01/url/fct_afs_dl.php
 파라미터: reg,
 tmfc1, tmfc2, disp, help"""
-        return self.call_endpoint('fct_afs_dl', params, use_sample=use_sample)
+        return (await self.call_endpoint('fct_afs_dl', params, use_sample=use_sample))
 
-    def fct_afs_dl2(
+    async def fct_afs_dl2(
         self,
         *,
         use_sample: bool = False,
@@ -11733,9 +11698,9 @@ tmfc1, tmfc2, disp, help"""
 Path: /api/typ01/url/fct_afs_dl2.php
 파라미터: reg, tmfc1, tmfc2,
 disp, help"""
-        return self.call_endpoint('fct_afs_dl2', params, use_sample=use_sample)
+        return (await self.call_endpoint('fct_afs_dl2', params, use_sample=use_sample))
 
-    def fct_afs_do(
+    async def fct_afs_do(
         self,
         *,
         use_sample: bool = False,
@@ -11746,9 +11711,9 @@ disp, help"""
 Path: /api/typ01/url/fct_afs_do.php
 파라미터: reg,
 tmfc1, tmfc2, disp, help"""
-        return self.call_endpoint('fct_afs_do', params, use_sample=use_sample)
+        return (await self.call_endpoint('fct_afs_do', params, use_sample=use_sample))
 
-    def dfs_shrt_grd(
+    async def dfs_shrt_grd(
         self,
         *,
         use_sample: bool = False,
@@ -11758,9 +11723,9 @@ tmfc1, tmfc2, disp, help"""
 
 Path: /api/typ01/cgi-bin/url/nph-dfs_shrt_grd
 파라미터: tmfc, tmef, vars"""
-        return self.call_endpoint('dfs_shrt_grd', params, use_sample=use_sample)
+        return (await self.call_endpoint('dfs_shrt_grd', params, use_sample=use_sample))
 
-    def dfs_vsrt_grd(
+    async def dfs_vsrt_grd(
         self,
         *,
         use_sample: bool = False,
@@ -11770,9 +11735,9 @@ Path: /api/typ01/cgi-bin/url/nph-dfs_shrt_grd
 
 Path: /api/typ01/cgi-bin/url/nph-dfs_vsrt_grd
 파라미터: tmfc, tmef, vars"""
-        return self.call_endpoint('dfs_vsrt_grd', params, use_sample=use_sample)
+        return (await self.call_endpoint('dfs_vsrt_grd', params, use_sample=use_sample))
 
-    def dfs_odam_grd(
+    async def dfs_odam_grd(
         self,
         *,
         use_sample: bool = False,
@@ -11782,9 +11747,9 @@ Path: /api/typ01/cgi-bin/url/nph-dfs_vsrt_grd
 
 Path: /api/typ01/cgi-bin/url/nph-dfs_odam_grd
 파라미터: tmfc, vars"""
-        return self.call_endpoint('dfs_odam_grd', params, use_sample=use_sample)
+        return (await self.call_endpoint('dfs_odam_grd', params, use_sample=use_sample))
 
-    def dfs_xy_lonlat(
+    async def dfs_xy_lonlat(
         self,
         *,
         use_sample: bool = False,
@@ -11795,9 +11760,9 @@ Path: /api/typ01/cgi-bin/url/nph-dfs_odam_grd
 Path: /api/typ01/cgi-
 bin/url/nph-dfs_xy_lonlat
 파라미터: x, y, help"""
-        return self.call_endpoint('dfs_xy_lonlat', params, use_sample=use_sample)
+        return (await self.call_endpoint('dfs_xy_lonlat', params, use_sample=use_sample))
 
-    def dfs_xy_lonlat_2(
+    async def dfs_xy_lonlat_2(
         self,
         *,
         use_sample: bool = False,
@@ -11808,9 +11773,9 @@ bin/url/nph-dfs_xy_lonlat
 Path: /api/typ01/cgi-
 bin/url/nph-dfs_xy_lonlat
 파라미터: lon, lat, help"""
-        return self.call_endpoint('dfs_xy_lonlat_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('dfs_xy_lonlat_2', params, use_sample=use_sample))
 
-    def vilage_fcst_msg_service_get_wthr_situation(
+    async def vilage_fcst_msg_service_get_wthr_situation(
         self,
         *,
         use_sample: bool = False,
@@ -11822,9 +11787,9 @@ Path:
 /api/typ02/openApi/VilageFcstMsgService/getWthrSituation
 파라미터: pageNo, numOfRows,
 dataType, stnId"""
-        return self.call_endpoint('vilage_fcst_msg_service_get_wthr_situation', params, use_sample=use_sample)
+        return (await self.call_endpoint('vilage_fcst_msg_service_get_wthr_situation', params, use_sample=use_sample))
 
-    def vilage_fcst_msg_service_get_land_fcst(
+    async def vilage_fcst_msg_service_get_land_fcst(
         self,
         *,
         use_sample: bool = False,
@@ -11834,9 +11799,9 @@ dataType, stnId"""
 
 Path: /api/typ02/openApi/VilageFcstMsgService/getLandFcst
 파라미터: pageNo, numOfRows, dataType, regId"""
-        return self.call_endpoint('vilage_fcst_msg_service_get_land_fcst', params, use_sample=use_sample)
+        return (await self.call_endpoint('vilage_fcst_msg_service_get_land_fcst', params, use_sample=use_sample))
 
-    def vilage_fcst_msg_service_get_land_fcst_2(
+    async def vilage_fcst_msg_service_get_land_fcst_2(
         self,
         *,
         use_sample: bool = False,
@@ -11846,9 +11811,9 @@ Path: /api/typ02/openApi/VilageFcstMsgService/getLandFcst
 
 Path: /api/typ02/openApi/VilageFcstMsgService/getLandFcst
 파라미터: pageNo, numOfRows, dataType"""
-        return self.call_endpoint('vilage_fcst_msg_service_get_land_fcst_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('vilage_fcst_msg_service_get_land_fcst_2', params, use_sample=use_sample))
 
-    def vilage_fcst_msg_service_get_sea_fcst(
+    async def vilage_fcst_msg_service_get_sea_fcst(
         self,
         *,
         use_sample: bool = False,
@@ -11858,9 +11823,9 @@ Path: /api/typ02/openApi/VilageFcstMsgService/getLandFcst
 
 Path: /api/typ02/openApi/VilageFcstMsgService/getSeaFcst
 파라미터: pageNo, numOfRows, dataType, regId"""
-        return self.call_endpoint('vilage_fcst_msg_service_get_sea_fcst', params, use_sample=use_sample)
+        return (await self.call_endpoint('vilage_fcst_msg_service_get_sea_fcst', params, use_sample=use_sample))
 
-    def vilage_fcst_msg_service_get_sea_fcst_2(
+    async def vilage_fcst_msg_service_get_sea_fcst_2(
         self,
         *,
         use_sample: bool = False,
@@ -11870,9 +11835,9 @@ Path: /api/typ02/openApi/VilageFcstMsgService/getSeaFcst
 
 Path: /api/typ02/openApi/VilageFcstMsgService/getSeaFcst
 파라미터: pageNo, numOfRows, dataType"""
-        return self.call_endpoint('vilage_fcst_msg_service_get_sea_fcst_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('vilage_fcst_msg_service_get_sea_fcst_2', params, use_sample=use_sample))
 
-    def vilage_fcst_info_service_2_0_get_ultra_srt_ncst(
+    async def vilage_fcst_info_service_2_0_get_ultra_srt_ncst(
         self,
         *,
         use_sample: bool = False,
@@ -11884,9 +11849,9 @@ Path:
 /api/typ02/openApi/VilageFcstInfoService_2.0/getUltraSrtNcst
 파라미터: pageNo, numOfRows,
 dataType, base_date, base_time, nx, ny"""
-        return self.call_endpoint('vilage_fcst_info_service_2_0_get_ultra_srt_ncst', params, use_sample=use_sample)
+        return (await self.call_endpoint('vilage_fcst_info_service_2_0_get_ultra_srt_ncst', params, use_sample=use_sample))
 
-    def vilage_fcst_info_service_2_0_get_ultra_srt_fcst(
+    async def vilage_fcst_info_service_2_0_get_ultra_srt_fcst(
         self,
         *,
         use_sample: bool = False,
@@ -11898,9 +11863,9 @@ Path:
 /api/typ02/openApi/VilageFcstInfoService_2.0/getUltraSrtFcst
 파라미터: pageNo, numOfRows,
 dataType, base_date, base_time, nx, ny"""
-        return self.call_endpoint('vilage_fcst_info_service_2_0_get_ultra_srt_fcst', params, use_sample=use_sample)
+        return (await self.call_endpoint('vilage_fcst_info_service_2_0_get_ultra_srt_fcst', params, use_sample=use_sample))
 
-    def vilage_fcst_info_service_2_0_get_vilage_fcst(
+    async def vilage_fcst_info_service_2_0_get_vilage_fcst(
         self,
         *,
         use_sample: bool = False,
@@ -11912,9 +11877,9 @@ Path:
 /api/typ02/openApi/VilageFcstInfoService_2.0/getVilageFcst
 파라미터: pageNo, numOfRows,
 dataType, base_date, base_time, nx, ny"""
-        return self.call_endpoint('vilage_fcst_info_service_2_0_get_vilage_fcst', params, use_sample=use_sample)
+        return (await self.call_endpoint('vilage_fcst_info_service_2_0_get_vilage_fcst', params, use_sample=use_sample))
 
-    def vilage_fcst_info_service_2_0_get_fcst_version(
+    async def vilage_fcst_info_service_2_0_get_fcst_version(
         self,
         *,
         use_sample: bool = False,
@@ -11926,9 +11891,9 @@ Path:
 /api/typ02/openApi/VilageFcstInfoService_2.0/getFcstVersion
 파라미터: pageNo, numOfRows,
 dataType, ftype, basedatetime"""
-        return self.call_endpoint('vilage_fcst_info_service_2_0_get_fcst_version', params, use_sample=use_sample)
+        return (await self.call_endpoint('vilage_fcst_info_service_2_0_get_fcst_version', params, use_sample=use_sample))
 
-    def dfs_nph_dfs_shrt_ana_5d_test(
+    async def dfs_nph_dfs_shrt_ana_5d_test(
         self,
         *,
         use_sample: bool = False,
@@ -11940,9 +11905,9 @@ Path: /api/typ03/cgi/dfs/nph-dfs_shrt_ana_5d_test
 파라미터: data0, data1,
 tm_ef, tm_fc, dtm, map, mask, color, size, effect, overlay, zoom_rate, zoom_level,
 zoom_x, zoom_y, auto_man, mode, interval, rand"""
-        return self.call_endpoint('dfs_nph_dfs_shrt_ana_5d_test', params, use_sample=use_sample)
+        return (await self.call_endpoint('dfs_nph_dfs_shrt_ana_5d_test', params, use_sample=use_sample))
 
-    def dfs_nph_dfs_vsrt_ana2(
+    async def dfs_nph_dfs_vsrt_ana2(
         self,
         *,
         use_sample: bool = False,
@@ -11954,9 +11919,9 @@ Path: /api/typ03/cgi/dfs/nph-dfs_vsrt_ana2
 파라미터: data0, tm_fc,
 data1, tm_ef, dtm, map, mask, color, size, effect, overlay, zoom_rate, zoom_level,
 zoom_x, zoom_y, auto_man, mode, rand"""
-        return self.call_endpoint('dfs_nph_dfs_vsrt_ana2', params, use_sample=use_sample)
+        return (await self.call_endpoint('dfs_nph_dfs_vsrt_ana2', params, use_sample=use_sample))
 
-    def dfs_latlon_api(
+    async def dfs_latlon_api(
         self,
         *,
         use_sample: bool = False,
@@ -11967,9 +11932,9 @@ zoom_x, zoom_y, auto_man, mode, rand"""
 Path: /api/typ01/cgi-bin/url/nph-
 dfs_latlon_api
 파라미터: fct, latlon, disp"""
-        return self.call_endpoint('dfs_latlon_api', params, use_sample=use_sample)
+        return (await self.call_endpoint('dfs_latlon_api', params, use_sample=use_sample))
 
-    def dfs_latlon_file_down(
+    async def dfs_latlon_file_down(
         self,
         *,
         use_sample: bool = False,
@@ -11980,9 +11945,9 @@ dfs_latlon_api
 Path:
 /api/typ01/url/dfs_latlon_file_down.php
 파라미터: fct"""
-        return self.call_endpoint('dfs_latlon_file_down', params, use_sample=use_sample)
+        return (await self.call_endpoint('dfs_latlon_file_down', params, use_sample=use_sample))
 
-    def fct_medm_reg(
+    async def fct_medm_reg(
         self,
         *,
         use_sample: bool = False,
@@ -11993,9 +11958,9 @@ Path:
 Path: /api/typ01/url/fct_medm_reg.php
 파라미터:
 tmfc"""
-        return self.call_endpoint('fct_medm_reg', params, use_sample=use_sample)
+        return (await self.call_endpoint('fct_medm_reg', params, use_sample=use_sample))
 
-    def fct_afs_ws(
+    async def fct_afs_ws(
         self,
         *,
         use_sample: bool = False,
@@ -12005,9 +11970,9 @@ tmfc"""
 
 Path: /api/typ01/url/fct_afs_ws.php
 파라미터: stn, tmfc1, tmfc2, disp, help"""
-        return self.call_endpoint('fct_afs_ws', params, use_sample=use_sample)
+        return (await self.call_endpoint('fct_afs_ws', params, use_sample=use_sample))
 
-    def fct_afs_wl(
+    async def fct_afs_wl(
         self,
         *,
         use_sample: bool = False,
@@ -12018,9 +11983,9 @@ Path: /api/typ01/url/fct_afs_ws.php
 Path: /api/typ01/url/fct_afs_wl.php
 파라미터: reg,
 tmfc1, tmfc2, tmef1, tmef2, disp, help"""
-        return self.call_endpoint('fct_afs_wl', params, use_sample=use_sample)
+        return (await self.call_endpoint('fct_afs_wl', params, use_sample=use_sample))
 
-    def fct_afs_wc(
+    async def fct_afs_wc(
         self,
         *,
         use_sample: bool = False,
@@ -12031,9 +11996,9 @@ tmfc1, tmfc2, tmef1, tmef2, disp, help"""
 Path: /api/typ01/url/fct_afs_wc.php
 파라미터: reg,
 tmfc1, tmfc2, tmef1, tmef2, disp, help"""
-        return self.call_endpoint('fct_afs_wc', params, use_sample=use_sample)
+        return (await self.call_endpoint('fct_afs_wc', params, use_sample=use_sample))
 
-    def fct_afs_wo(
+    async def fct_afs_wo(
         self,
         *,
         use_sample: bool = False,
@@ -12044,9 +12009,9 @@ tmfc1, tmfc2, tmef1, tmef2, disp, help"""
 Path: /api/typ01/url/fct_afs_wo.php
 파라미터: reg,
 tmfc1, tmfc2, tmef1, tmef2, disp, help"""
-        return self.call_endpoint('fct_afs_wo', params, use_sample=use_sample)
+        return (await self.call_endpoint('fct_afs_wo', params, use_sample=use_sample))
 
-    def mid_fcst_info_service_get_mid_sea_fcst(
+    async def mid_fcst_info_service_get_mid_sea_fcst(
         self,
         *,
         use_sample: bool = False,
@@ -12056,9 +12021,9 @@ tmfc1, tmfc2, tmef1, tmef2, disp, help"""
 
 Path: /api/typ02/openApi/MidFcstInfoService/getMidSeaFcst
 파라미터: pageNo, numOfRows, dataType, regId, tmFc"""
-        return self.call_endpoint('mid_fcst_info_service_get_mid_sea_fcst', params, use_sample=use_sample)
+        return (await self.call_endpoint('mid_fcst_info_service_get_mid_sea_fcst', params, use_sample=use_sample))
 
-    def mid_fcst_info_service_get_mid_sea_fcst_2(
+    async def mid_fcst_info_service_get_mid_sea_fcst_2(
         self,
         *,
         use_sample: bool = False,
@@ -12068,9 +12033,9 @@ Path: /api/typ02/openApi/MidFcstInfoService/getMidSeaFcst
 
 Path: /api/typ02/openApi/MidFcstInfoService/getMidSeaFcst
 파라미터: pageNo, numOfRows, dataType, tmFc"""
-        return self.call_endpoint('mid_fcst_info_service_get_mid_sea_fcst_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('mid_fcst_info_service_get_mid_sea_fcst_2', params, use_sample=use_sample))
 
-    def mid_fcst_info_service_get_mid_ta(
+    async def mid_fcst_info_service_get_mid_ta(
         self,
         *,
         use_sample: bool = False,
@@ -12081,9 +12046,9 @@ Path: /api/typ02/openApi/MidFcstInfoService/getMidSeaFcst
 Path: /api/typ02/openApi/MidFcstInfoService/getMidTa
 파라미터:
 pageNo, numOfRows, dataType, regId, tmFc"""
-        return self.call_endpoint('mid_fcst_info_service_get_mid_ta', params, use_sample=use_sample)
+        return (await self.call_endpoint('mid_fcst_info_service_get_mid_ta', params, use_sample=use_sample))
 
-    def mid_fcst_info_service_get_mid_ta_2(
+    async def mid_fcst_info_service_get_mid_ta_2(
         self,
         *,
         use_sample: bool = False,
@@ -12094,9 +12059,9 @@ pageNo, numOfRows, dataType, regId, tmFc"""
 Path: /api/typ02/openApi/MidFcstInfoService/getMidTa
 파라미터:
 pageNo, numOfRows, dataType, tmFc"""
-        return self.call_endpoint('mid_fcst_info_service_get_mid_ta_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('mid_fcst_info_service_get_mid_ta_2', params, use_sample=use_sample))
 
-    def mid_fcst_info_service_get_mid_land_fcst(
+    async def mid_fcst_info_service_get_mid_land_fcst(
         self,
         *,
         use_sample: bool = False,
@@ -12106,9 +12071,9 @@ pageNo, numOfRows, dataType, tmFc"""
 
 Path: /api/typ02/openApi/MidFcstInfoService/getMidLandFcst
 파라미터: pageNo, numOfRows, dataType, regId, tmFc"""
-        return self.call_endpoint('mid_fcst_info_service_get_mid_land_fcst', params, use_sample=use_sample)
+        return (await self.call_endpoint('mid_fcst_info_service_get_mid_land_fcst', params, use_sample=use_sample))
 
-    def mid_fcst_info_service_get_mid_land_fcst_2(
+    async def mid_fcst_info_service_get_mid_land_fcst_2(
         self,
         *,
         use_sample: bool = False,
@@ -12118,9 +12083,9 @@ Path: /api/typ02/openApi/MidFcstInfoService/getMidLandFcst
 
 Path: /api/typ02/openApi/MidFcstInfoService/getMidLandFcst
 파라미터: pageNo, numOfRows, dataType, tmFc"""
-        return self.call_endpoint('mid_fcst_info_service_get_mid_land_fcst_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('mid_fcst_info_service_get_mid_land_fcst_2', params, use_sample=use_sample))
 
-    def mid_fcst_info_service_get_mid_fcst(
+    async def mid_fcst_info_service_get_mid_fcst(
         self,
         *,
         use_sample: bool = False,
@@ -12131,9 +12096,9 @@ Path: /api/typ02/openApi/MidFcstInfoService/getMidLandFcst
 Path: /api/typ02/openApi/MidFcstInfoService/getMidFcst
 파라미터:
 pageNo, numOfRows, dataType, stnId, tmFc"""
-        return self.call_endpoint('mid_fcst_info_service_get_mid_fcst', params, use_sample=use_sample)
+        return (await self.call_endpoint('mid_fcst_info_service_get_mid_fcst', params, use_sample=use_sample))
 
-    def wrn_reg(
+    async def wrn_reg(
         self,
         *,
         use_sample: bool = False,
@@ -12143,9 +12108,9 @@ pageNo, numOfRows, dataType, stnId, tmFc"""
 
 Path: /api/typ01/url/wrn_reg.php
 파라미터: tmfc"""
-        return self.call_endpoint('wrn_reg', params, use_sample=use_sample)
+        return (await self.call_endpoint('wrn_reg', params, use_sample=use_sample))
 
-    def wrn_met_data(
+    async def wrn_met_data(
         self,
         *,
         use_sample: bool = False,
@@ -12156,9 +12121,9 @@ Path: /api/typ01/url/wrn_reg.php
 Path: /api/typ01/url/wrn_met_data.php
 파라미터: reg, wrn, tmfc1,
 tmfc2, disp, help"""
-        return self.call_endpoint('wrn_met_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('wrn_met_data', params, use_sample=use_sample))
 
-    def wrn_inf_rpt(
+    async def wrn_inf_rpt(
         self,
         *,
         use_sample: bool = False,
@@ -12169,9 +12134,9 @@ tmfc2, disp, help"""
 Path: /api/typ01/url/wrn_inf_rpt.php
 파라미터: tmfc1, tmfc2, stn,
 disp, help"""
-        return self.call_endpoint('wrn_inf_rpt', params, use_sample=use_sample)
+        return (await self.call_endpoint('wrn_inf_rpt', params, use_sample=use_sample))
 
-    def wthr_cmt_rpt(
+    async def wthr_cmt_rpt(
         self,
         *,
         use_sample: bool = False,
@@ -12182,9 +12147,9 @@ disp, help"""
 Path: /api/typ01/url/wthr_cmt_rpt.php
 파라미터: tmfc1, tmfc2, stn,
 subcd, disp, help"""
-        return self.call_endpoint('wthr_cmt_rpt', params, use_sample=use_sample)
+        return (await self.call_endpoint('wthr_cmt_rpt', params, use_sample=use_sample))
 
-    def wrn_now_data(
+    async def wrn_now_data(
         self,
         *,
         use_sample: bool = False,
@@ -12194,9 +12159,9 @@ subcd, disp, help"""
 
 Path: /api/typ01/url/wrn_now_data.php
 파라미터: fe, tm, disp, help"""
-        return self.call_endpoint('wrn_now_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('wrn_now_data', params, use_sample=use_sample))
 
-    def wrn_now_data_new(
+    async def wrn_now_data_new(
         self,
         *,
         use_sample: bool = False,
@@ -12206,9 +12171,9 @@ Path: /api/typ01/url/wrn_now_data.php
 
 Path: /api/typ01/url/wrn_now_data_new.php
 파라미터: fe, tm, disp, help"""
-        return self.call_endpoint('wrn_now_data_new', params, use_sample=use_sample)
+        return (await self.call_endpoint('wrn_now_data_new', params, use_sample=use_sample))
 
-    def wrn_nph_wrn7(
+    async def wrn_nph_wrn7(
         self,
         *,
         use_sample: bool = False,
@@ -12219,9 +12184,9 @@ Path: /api/typ01/url/wrn_now_data_new.php
 Path: /api/typ03/cgi/wrn/nph-wrn7
 파라미터: out,
 tmef, city, name, tm, lon, lat, range, size, wrn"""
-        return self.call_endpoint('wrn_nph_wrn7', params, use_sample=use_sample)
+        return (await self.call_endpoint('wrn_nph_wrn7', params, use_sample=use_sample))
 
-    def ifs_fct_pstt(
+    async def ifs_fct_pstt(
         self,
         *,
         use_sample: bool = False,
@@ -12232,9 +12197,9 @@ tmef, city, name, tm, lon, lat, range, size, wrn"""
 Path:
 /api/typ01/url/ifs_fct_pstt.php
 파라미터: tmef1, tmef2, ifpar, help"""
-        return self.call_endpoint('ifs_fct_pstt', params, use_sample=use_sample)
+        return (await self.call_endpoint('ifs_fct_pstt', params, use_sample=use_sample))
 
-    def ifs_fct_pstt_2(
+    async def ifs_fct_pstt_2(
         self,
         *,
         use_sample: bool = False,
@@ -12245,9 +12210,9 @@ Path:
 Path:
 /api/typ01/url/ifs_fct_pstt.php
 파라미터: tmfc1, tmfc2, ifpar, help"""
-        return self.call_endpoint('ifs_fct_pstt_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('ifs_fct_pstt_2', params, use_sample=use_sample))
 
-    def ifs_fct_pstt_3(
+    async def ifs_fct_pstt_3(
         self,
         *,
         use_sample: bool = False,
@@ -12258,9 +12223,9 @@ Path:
 Path:
 /api/typ01/url/ifs_fct_pstt.php
 파라미터: tmef1, tmef2, ifarea, regid, help"""
-        return self.call_endpoint('ifs_fct_pstt_3', params, use_sample=use_sample)
+        return (await self.call_endpoint('ifs_fct_pstt_3', params, use_sample=use_sample))
 
-    def ifs_ilvl_zone_cnt(
+    async def ifs_ilvl_zone_cnt(
         self,
         *,
         use_sample: bool = False,
@@ -12271,9 +12236,9 @@ Path:
 Path: /api/typ01/url/ifs_ilvl_zone_cnt.php
 파라미터:
 help, tmfc1, tmfc2"""
-        return self.call_endpoint('ifs_ilvl_zone_cnt', params, use_sample=use_sample)
+        return (await self.call_endpoint('ifs_ilvl_zone_cnt', params, use_sample=use_sample))
 
-    def ifs_ilvl_zone_cnt_2(
+    async def ifs_ilvl_zone_cnt_2(
         self,
         *,
         use_sample: bool = False,
@@ -12284,9 +12249,9 @@ help, tmfc1, tmfc2"""
 Path: /api/typ01/url/ifs_ilvl_zone_cnt.php
 파라미터:
 help, tmef1, tmef2"""
-        return self.call_endpoint('ifs_ilvl_zone_cnt_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('ifs_ilvl_zone_cnt_2', params, use_sample=use_sample))
 
-    def ifs_ilvl_zone_cnt_3(
+    async def ifs_ilvl_zone_cnt_3(
         self,
         *,
         use_sample: bool = False,
@@ -12297,9 +12262,9 @@ help, tmef1, tmef2"""
 Path:
 /api/typ01/url/ifs_ilvl_zone_cnt.php
 파라미터: help, tmef1, tmef2, ifarea, stn"""
-        return self.call_endpoint('ifs_ilvl_zone_cnt_3', params, use_sample=use_sample)
+        return (await self.call_endpoint('ifs_ilvl_zone_cnt_3', params, use_sample=use_sample))
 
-    def ifs_ilvl_zone_cnt_4(
+    async def ifs_ilvl_zone_cnt_4(
         self,
         *,
         use_sample: bool = False,
@@ -12309,9 +12274,9 @@ Path:
 
 Path: /api/typ01/url/ifs_ilvl_zone_cnt.php
 파라미터: help, tmef1, tmef2, ilvl"""
-        return self.call_endpoint('ifs_ilvl_zone_cnt_4', params, use_sample=use_sample)
+        return (await self.call_endpoint('ifs_ilvl_zone_cnt_4', params, use_sample=use_sample))
 
-    def ifs_ilvl_dmap(
+    async def ifs_ilvl_dmap(
         self,
         *,
         use_sample: bool = False,
@@ -12321,9 +12286,9 @@ Path: /api/typ01/url/ifs_ilvl_zone_cnt.php
 
 Path: /api/typ01/url/ifs_ilvl_dmap.php
 파라미터: tmfc"""
-        return self.call_endpoint('ifs_ilvl_dmap', params, use_sample=use_sample)
+        return (await self.call_endpoint('ifs_ilvl_dmap', params, use_sample=use_sample))
 
-    def ifs_ilvl_dmap_2(
+    async def ifs_ilvl_dmap_2(
         self,
         *,
         use_sample: bool = False,
@@ -12334,9 +12299,9 @@ Path: /api/typ01/url/ifs_ilvl_dmap.php
 Path: /api/typ01/url/ifs_ilvl_dmap.php
 파라미터: tmfc,
 stn"""
-        return self.call_endpoint('ifs_ilvl_dmap_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('ifs_ilvl_dmap_2', params, use_sample=use_sample))
 
-    def ifs_ilvl_dmap_3(
+    async def ifs_ilvl_dmap_3(
         self,
         *,
         use_sample: bool = False,
@@ -12347,9 +12312,9 @@ stn"""
 Path: /api/typ01/url/ifs_ilvl_dmap.php
 파라미터:
 tmfc, ifpar"""
-        return self.call_endpoint('ifs_ilvl_dmap_3', params, use_sample=use_sample)
+        return (await self.call_endpoint('ifs_ilvl_dmap_3', params, use_sample=use_sample))
 
-    def ifs_ilvl_dmap_4(
+    async def ifs_ilvl_dmap_4(
         self,
         *,
         use_sample: bool = False,
@@ -12360,9 +12325,9 @@ tmfc, ifpar"""
 Path: /api/typ01/url/ifs_ilvl_dmap.php
 파라미터: tmfc,
 ifarea"""
-        return self.call_endpoint('ifs_ilvl_dmap_4', params, use_sample=use_sample)
+        return (await self.call_endpoint('ifs_ilvl_dmap_4', params, use_sample=use_sample))
 
-    def fcst_zone_info_service_get_fcst_zone_cd(
+    async def fcst_zone_info_service_get_fcst_zone_cd(
         self,
         *,
         use_sample: bool = False,
@@ -12374,9 +12339,9 @@ Path:
 /api/typ02/openApi/FcstZoneInfoService/getFcstZoneCd
 파라미터: pageNo, numOfRows, dataType,
 regId"""
-        return self.call_endpoint('fcst_zone_info_service_get_fcst_zone_cd', params, use_sample=use_sample)
+        return (await self.call_endpoint('fcst_zone_info_service_get_fcst_zone_cd', params, use_sample=use_sample))
 
-    def fcst_zone_info_service_get_fcst_zone_cd_2(
+    async def fcst_zone_info_service_get_fcst_zone_cd_2(
         self,
         *,
         use_sample: bool = False,
@@ -12387,9 +12352,9 @@ regId"""
 Path:
 /api/typ02/openApi/FcstZoneInfoService/getFcstZoneCd
 파라미터: pageNo, numOfRows, dataType"""
-        return self.call_endpoint('fcst_zone_info_service_get_fcst_zone_cd_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('fcst_zone_info_service_get_fcst_zone_cd_2', params, use_sample=use_sample))
 
-    def wethr_basic_info_service_get_wrn_zone_cd(
+    async def wethr_basic_info_service_get_wrn_zone_cd(
         self,
         *,
         use_sample: bool = False,
@@ -12399,9 +12364,9 @@ Path:
 
 Path: /api/typ02/openApi/WethrBasicInfoService/getWrnZoneCd
 파라미터: pageNo, numOfRows, dataType, korName"""
-        return self.call_endpoint('wethr_basic_info_service_get_wrn_zone_cd', params, use_sample=use_sample)
+        return (await self.call_endpoint('wethr_basic_info_service_get_wrn_zone_cd', params, use_sample=use_sample))
 
-    def wrn_reg_aws(
+    async def wrn_reg_aws(
         self,
         *,
         use_sample: bool = False,
@@ -12412,9 +12377,9 @@ Path: /api/typ02/openApi/WethrBasicInfoService/getWrnZoneCd
 Path: /api/typ01/url/wrn_reg_aws.php
 파라미터:
 tm, disp, help"""
-        return self.call_endpoint('wrn_reg_aws', params, use_sample=use_sample)
+        return (await self.call_endpoint('wrn_reg_aws', params, use_sample=use_sample))
 
-    def wrn_reg_aws2(
+    async def wrn_reg_aws2(
         self,
         *,
         use_sample: bool = False,
@@ -12425,9 +12390,9 @@ tm, disp, help"""
 Path:
 /api/typ01/url/wrn_reg_aws2.php
 파라미터: tm, disp, help"""
-        return self.call_endpoint('wrn_reg_aws2', params, use_sample=use_sample)
+        return (await self.call_endpoint('wrn_reg_aws2', params, use_sample=use_sample))
 
-    def gts_syn1(
+    async def gts_syn1(
         self,
         *,
         use_sample: bool = False,
@@ -12438,9 +12403,9 @@ Path:
 Path: /api/typ01/url/gts_syn1.php
 파라미터: tm,
 dtm, stn, help"""
-        return self.call_endpoint('gts_syn1', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_syn1', params, use_sample=use_sample))
 
-    def gts_bufr_syn1(
+    async def gts_bufr_syn1(
         self,
         *,
         use_sample: bool = False,
@@ -12451,9 +12416,9 @@ dtm, stn, help"""
 Path:
 /api/typ01/url/gts_bufr_syn1.php
 파라미터: tm, dtm, stn, help"""
-        return self.call_endpoint('gts_bufr_syn1', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_bufr_syn1', params, use_sample=use_sample))
 
-    def gts_bufr_syn(
+    async def gts_bufr_syn(
         self,
         *,
         use_sample: bool = False,
@@ -12464,9 +12429,9 @@ Path:
 Path: /api/typ01/url/gts_bufr_syn.php
 파라미터:
 tm, dtm, stn, help"""
-        return self.call_endpoint('gts_bufr_syn', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_bufr_syn', params, use_sample=use_sample))
 
-    def gts_syn(
+    async def gts_syn(
         self,
         *,
         use_sample: bool = False,
@@ -12477,9 +12442,9 @@ tm, dtm, stn, help"""
 Path: /api/typ01/url/gts_syn.php
 파라미터: tm,
 dtm, stn, help"""
-        return self.call_endpoint('gts_syn', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_syn', params, use_sample=use_sample))
 
-    def gts_ship1(
+    async def gts_ship1(
         self,
         *,
         use_sample: bool = False,
@@ -12489,9 +12454,9 @@ dtm, stn, help"""
 
 Path: /api/typ01/url/gts_ship1.php
 파라미터: tm, dtm, help"""
-        return self.call_endpoint('gts_ship1', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_ship1', params, use_sample=use_sample))
 
-    def gts_bufr_ship(
+    async def gts_bufr_ship(
         self,
         *,
         use_sample: bool = False,
@@ -12502,9 +12467,9 @@ Path: /api/typ01/url/gts_ship1.php
 Path: /api/typ01/url/gts_bufr_ship.php
 파라미터: tm, dtm,
 help"""
-        return self.call_endpoint('gts_bufr_ship', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_bufr_ship', params, use_sample=use_sample))
 
-    def gts_ship(
+    async def gts_ship(
         self,
         *,
         use_sample: bool = False,
@@ -12515,9 +12480,9 @@ help"""
 Path: /api/typ01/url/gts_ship.php
 파라미터: tm,
 dtm, help"""
-        return self.call_endpoint('gts_ship', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_ship', params, use_sample=use_sample))
 
-    def gts_buoy1(
+    async def gts_buoy1(
         self,
         *,
         use_sample: bool = False,
@@ -12527,9 +12492,9 @@ dtm, help"""
 
 Path: /api/typ01/url/gts_buoy1.php
 파라미터: tm, dtm, stn, help"""
-        return self.call_endpoint('gts_buoy1', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_buoy1', params, use_sample=use_sample))
 
-    def gts_buoy2(
+    async def gts_buoy2(
         self,
         *,
         use_sample: bool = False,
@@ -12540,9 +12505,9 @@ Path: /api/typ01/url/gts_buoy1.php
 Path: /api/typ01/url/gts_buoy2.php
 파라미터: tm, dtm, stn,
 help"""
-        return self.call_endpoint('gts_buoy2', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_buoy2', params, use_sample=use_sample))
 
-    def gts_bufr_buoy(
+    async def gts_bufr_buoy(
         self,
         *,
         use_sample: bool = False,
@@ -12553,9 +12518,9 @@ help"""
 Path: /api/typ01/url/gts_bufr_buoy.php
 파라미터: tm, dtm,
 stn, help"""
-        return self.call_endpoint('gts_bufr_buoy', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_bufr_buoy', params, use_sample=use_sample))
 
-    def gts_buoy(
+    async def gts_buoy(
         self,
         *,
         use_sample: bool = False,
@@ -12566,9 +12531,9 @@ stn, help"""
 Path: /api/typ01/url/gts_buoy.php
 파라미터: tm, dtm, stn,
 help"""
-        return self.call_endpoint('gts_buoy', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_buoy', params, use_sample=use_sample))
 
-    def gts_temp1(
+    async def gts_temp1(
         self,
         *,
         use_sample: bool = False,
@@ -12578,9 +12543,9 @@ help"""
 
 Path: /api/typ01/url/gts_temp1.php
 파라미터: tm, stn, pa, help"""
-        return self.call_endpoint('gts_temp1', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_temp1', params, use_sample=use_sample))
 
-    def gts_bufr_temp(
+    async def gts_bufr_temp(
         self,
         *,
         use_sample: bool = False,
@@ -12591,9 +12556,9 @@ Path: /api/typ01/url/gts_temp1.php
 Path: /api/typ01/url/gts_bufr_temp.php
 파라미터: tm, stn, pa,
 help"""
-        return self.call_endpoint('gts_bufr_temp', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_bufr_temp', params, use_sample=use_sample))
 
-    def gts_temp(
+    async def gts_temp(
         self,
         *,
         use_sample: bool = False,
@@ -12604,9 +12569,9 @@ help"""
 Path: /api/typ01/url/gts_temp.php
 파라미터: tm, stn, pa,
 help"""
-        return self.call_endpoint('gts_temp', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_temp', params, use_sample=use_sample))
 
-    def gts_pilot(
+    async def gts_pilot(
         self,
         *,
         use_sample: bool = False,
@@ -12616,9 +12581,9 @@ help"""
 
 Path: /api/typ01/url/gts_pilot.php
 파라미터: tm, stn, help"""
-        return self.call_endpoint('gts_pilot', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_pilot', params, use_sample=use_sample))
 
-    def gts_airep1(
+    async def gts_airep1(
         self,
         *,
         use_sample: bool = False,
@@ -12628,9 +12593,9 @@ Path: /api/typ01/url/gts_pilot.php
 
 Path: /api/typ01/url/gts_airep1.php
 파라미터: tm, dtm, stn, help"""
-        return self.call_endpoint('gts_airep1', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_airep1', params, use_sample=use_sample))
 
-    def gts_metar_dec(
+    async def gts_metar_dec(
         self,
         *,
         use_sample: bool = False,
@@ -12640,9 +12605,9 @@ Path: /api/typ01/url/gts_airep1.php
 
 Path: /api/typ01/url/gts_metar_dec.php
 파라미터: tm1, tm2, help"""
-        return self.call_endpoint('gts_metar_dec', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_metar_dec', params, use_sample=use_sample))
 
-    def amdar_bufr(
+    async def amdar_bufr(
         self,
         *,
         use_sample: bool = False,
@@ -12652,9 +12617,9 @@ Path: /api/typ01/url/gts_metar_dec.php
 
 Path: /api/typ01/cgi-bin/url/nph-amdar_bufr
 파라미터: flag, tm"""
-        return self.call_endpoint('amdar_bufr', params, use_sample=use_sample)
+        return (await self.call_endpoint('amdar_bufr', params, use_sample=use_sample))
 
-    def amdar_bufr_2(
+    async def amdar_bufr_2(
         self,
         *,
         use_sample: bool = False,
@@ -12665,9 +12630,9 @@ Path: /api/typ01/cgi-bin/url/nph-amdar_bufr
 Path: /api/typ01/cgi-bin/url/nph-
 amdar_bufr
 파라미터: flag, tm, lon1, lat1, lon2, lat2, mode, pa"""
-        return self.call_endpoint('amdar_bufr_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('amdar_bufr_2', params, use_sample=use_sample))
 
-    def amdar_bufr_3(
+    async def amdar_bufr_3(
         self,
         *,
         use_sample: bool = False,
@@ -12677,9 +12642,9 @@ amdar_bufr
 
 Path: /api/typ01/cgi-bin/url/nph-amdar_bufr
 파라미터: flag, tm, lon1, lat1, lon2, lat2, mode"""
-        return self.call_endpoint('amdar_bufr_3', params, use_sample=use_sample)
+        return (await self.call_endpoint('amdar_bufr_3', params, use_sample=use_sample))
 
-    def amdar_bufr_4(
+    async def amdar_bufr_4(
         self,
         *,
         use_sample: bool = False,
@@ -12689,9 +12654,9 @@ Path: /api/typ01/cgi-bin/url/nph-amdar_bufr
 
 Path: /api/typ01/cgi-bin/url/nph-amdar_bufr
 파라미터: flag, tm, aircraft, fname"""
-        return self.call_endpoint('amdar_bufr_4', params, use_sample=use_sample)
+        return (await self.call_endpoint('amdar_bufr_4', params, use_sample=use_sample))
 
-    def gts_cht_sfc(
+    async def gts_cht_sfc(
         self,
         *,
         use_sample: bool = False,
@@ -12702,9 +12667,9 @@ Path: /api/typ01/cgi-bin/url/nph-amdar_bufr
 Path: /api/typ01/url/gts_cht_sfc.php
 파라미터: tm,
 help"""
-        return self.call_endpoint('gts_cht_sfc', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_cht_sfc', params, use_sample=use_sample))
 
-    def gts_cht_sfc_tot(
+    async def gts_cht_sfc_tot(
         self,
         *,
         use_sample: bool = False,
@@ -12715,9 +12680,9 @@ help"""
 Path:
 /api/typ01/url/gts_cht_sfc_tot.php
 파라미터: tm, help"""
-        return self.call_endpoint('gts_cht_sfc_tot', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_cht_sfc_tot', params, use_sample=use_sample))
 
-    def gts_cht_syn(
+    async def gts_cht_syn(
         self,
         *,
         use_sample: bool = False,
@@ -12727,9 +12692,9 @@ Path:
 
 Path: /api/typ01/url/gts_cht_syn.php
 파라미터: tm, help"""
-        return self.call_endpoint('gts_cht_syn', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_cht_syn', params, use_sample=use_sample))
 
-    def gts_cht_syn_2(
+    async def gts_cht_syn_2(
         self,
         *,
         use_sample: bool = False,
@@ -12740,9 +12705,9 @@ Path: /api/typ01/url/gts_cht_syn.php
 Path:
 /api/typ01/url/gts_cht_syn.php
 파라미터: tm, lon1, lon2, lat1, lat2, help"""
-        return self.call_endpoint('gts_cht_syn_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_cht_syn_2', params, use_sample=use_sample))
 
-    def gts_cht_temp(
+    async def gts_cht_temp(
         self,
         *,
         use_sample: bool = False,
@@ -12752,9 +12717,9 @@ Path:
 
 Path: /api/typ01/url/gts_cht_temp.php
 파라미터: tm, stn, pa, lon1, lon2, lat1, lat2, help"""
-        return self.call_endpoint('gts_cht_temp', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_cht_temp', params, use_sample=use_sample))
 
-    def gts_cht_pilot(
+    async def gts_cht_pilot(
         self,
         *,
         use_sample: bool = False,
@@ -12764,9 +12729,9 @@ Path: /api/typ01/url/gts_cht_temp.php
 
 Path: /api/typ01/url/gts_cht_pilot.php
 파라미터: tm, stn, help"""
-        return self.call_endpoint('gts_cht_pilot', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_cht_pilot', params, use_sample=use_sample))
 
-    def gts_info_service_get_buoy(
+    async def gts_info_service_get_buoy(
         self,
         *,
         use_sample: bool = False,
@@ -12777,9 +12742,9 @@ Path: /api/typ01/url/gts_cht_pilot.php
 Path:
 /api/typ02/openApi/GtsInfoService/getBuoy
 파라미터: numOfRows, pageNo, dataType, tm, stnId"""
-        return self.call_endpoint('gts_info_service_get_buoy', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_info_service_get_buoy', params, use_sample=use_sample))
 
-    def gts_info_service_get_synop(
+    async def gts_info_service_get_synop(
         self,
         *,
         use_sample: bool = False,
@@ -12790,9 +12755,9 @@ Path:
 Path:
 /api/typ02/openApi/GtsInfoService/getSynop
 파라미터: numOfRows, pageNo, dataType, tm, stnId"""
-        return self.call_endpoint('gts_info_service_get_synop', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_info_service_get_synop', params, use_sample=use_sample))
 
-    def gts_info_service_get_temp(
+    async def gts_info_service_get_temp(
         self,
         *,
         use_sample: bool = False,
@@ -12803,9 +12768,9 @@ Path:
 Path:
 /api/typ02/openApi/GtsInfoService/getTemp
 파라미터: numOfRows, pageNo, dataType, tm, stnId"""
-        return self.call_endpoint('gts_info_service_get_temp', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_info_service_get_temp', params, use_sample=use_sample))
 
-    def stn_gts1(
+    async def stn_gts1(
         self,
         *,
         use_sample: bool = False,
@@ -12816,9 +12781,9 @@ Path:
 Path: /api/typ01/url/stn_gts1.php
 파라미터: tm, ra, stn, upp,
 mode"""
-        return self.call_endpoint('stn_gts1', params, use_sample=use_sample)
+        return (await self.call_endpoint('stn_gts1', params, use_sample=use_sample))
 
-    def gts_info_service_get_gts_stn(
+    async def gts_info_service_get_gts_stn(
         self,
         *,
         use_sample: bool = False,
@@ -12830,9 +12795,9 @@ Path:
 /api/typ02/openApi/GtsInfoService/getGtsStn
 파라미터: numOfRows, pageNo, dataType, cc,
 category"""
-        return self.call_endpoint('gts_info_service_get_gts_stn', params, use_sample=use_sample)
+        return (await self.call_endpoint('gts_info_service_get_gts_stn', params, use_sample=use_sample))
 
-    def ncei_gsoh_data(
+    async def ncei_gsoh_data(
         self,
         *,
         use_sample: bool = False,
@@ -12842,9 +12807,9 @@ category"""
 
 Path: /api/typ01/url/ncei_gsoh_data.php
 파라미터: tm, stns"""
-        return self.call_endpoint('ncei_gsoh_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsoh_data', params, use_sample=use_sample))
 
-    def ncei_gsoh_data_2(
+    async def ncei_gsoh_data_2(
         self,
         *,
         use_sample: bool = False,
@@ -12854,9 +12819,9 @@ Path: /api/typ01/url/ncei_gsoh_data.php
 
 Path: /api/typ01/url/ncei_gsoh_data.php
 파라미터: tm1, tm2, stns"""
-        return self.call_endpoint('ncei_gsoh_data_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsoh_data_2', params, use_sample=use_sample))
 
-    def ncei_gsoh_file(
+    async def ncei_gsoh_file(
         self,
         *,
         use_sample: bool = False,
@@ -12867,9 +12832,9 @@ Path: /api/typ01/url/ncei_gsoh_data.php
 Path:
 /api/typ01/url/ncei_gsoh_file.php
 파라미터: YY, stn"""
-        return self.call_endpoint('ncei_gsoh_file', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsoh_file', params, use_sample=use_sample))
 
-    def ncei_gsoh_list(
+    async def ncei_gsoh_list(
         self,
         *,
         use_sample: bool = False,
@@ -12880,9 +12845,9 @@ Path:
 Path:
 /api/typ01/url/ncei_gsoh_list.php
 파라미터: YY"""
-        return self.call_endpoint('ncei_gsoh_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsoh_list', params, use_sample=use_sample))
 
-    def ncei_gsod_data(
+    async def ncei_gsod_data(
         self,
         *,
         use_sample: bool = False,
@@ -12892,9 +12857,9 @@ Path:
 
 Path: /api/typ01/url/ncei_gsod_data.php
 파라미터: tm, stns"""
-        return self.call_endpoint('ncei_gsod_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsod_data', params, use_sample=use_sample))
 
-    def ncei_gsod_data_2(
+    async def ncei_gsod_data_2(
         self,
         *,
         use_sample: bool = False,
@@ -12904,9 +12869,9 @@ Path: /api/typ01/url/ncei_gsod_data.php
 
 Path: /api/typ01/url/ncei_gsod_data.php
 파라미터: tm1, tm2, stns"""
-        return self.call_endpoint('ncei_gsod_data_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsod_data_2', params, use_sample=use_sample))
 
-    def ncei_gsod_data_3(
+    async def ncei_gsod_data_3(
         self,
         *,
         use_sample: bool = False,
@@ -12916,9 +12881,9 @@ Path: /api/typ01/url/ncei_gsod_data.php
 
 Path: /api/typ01/url/ncei_gsod_data.php
 파라미터: tm, lon1, lon2, lat1, lat2"""
-        return self.call_endpoint('ncei_gsod_data_3', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsod_data_3', params, use_sample=use_sample))
 
-    def ncei_gsod_file(
+    async def ncei_gsod_file(
         self,
         *,
         use_sample: bool = False,
@@ -12929,9 +12894,9 @@ Path: /api/typ01/url/ncei_gsod_data.php
 Path:
 /api/typ01/url/ncei_gsod_file.php
 파라미터: YY, stn"""
-        return self.call_endpoint('ncei_gsod_file', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsod_file', params, use_sample=use_sample))
 
-    def ncei_gsod_list(
+    async def ncei_gsod_list(
         self,
         *,
         use_sample: bool = False,
@@ -12942,9 +12907,9 @@ Path:
 Path:
 /api/typ01/url/ncei_gsod_list.php
 파라미터: YY"""
-        return self.call_endpoint('ncei_gsod_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsod_list', params, use_sample=use_sample))
 
-    def ncei_gsom_data(
+    async def ncei_gsom_data(
         self,
         *,
         use_sample: bool = False,
@@ -12954,9 +12919,9 @@ Path:
 
 Path: /api/typ01/url/ncei_gsom_data.php
 파라미터: tm, stns"""
-        return self.call_endpoint('ncei_gsom_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsom_data', params, use_sample=use_sample))
 
-    def ncei_gsom_data_2(
+    async def ncei_gsom_data_2(
         self,
         *,
         use_sample: bool = False,
@@ -12966,9 +12931,9 @@ Path: /api/typ01/url/ncei_gsom_data.php
 
 Path: /api/typ01/url/ncei_gsom_data.php
 파라미터: tm1, tm2, stns"""
-        return self.call_endpoint('ncei_gsom_data_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsom_data_2', params, use_sample=use_sample))
 
-    def ncei_gsom_data_3(
+    async def ncei_gsom_data_3(
         self,
         *,
         use_sample: bool = False,
@@ -12978,9 +12943,9 @@ Path: /api/typ01/url/ncei_gsom_data.php
 
 Path: /api/typ01/url/ncei_gsom_data.php
 파라미터: tm, lon1, lon2, lat1, lat2"""
-        return self.call_endpoint('ncei_gsom_data_3', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsom_data_3', params, use_sample=use_sample))
 
-    def ncei_gsom_file(
+    async def ncei_gsom_file(
         self,
         *,
         use_sample: bool = False,
@@ -12991,9 +12956,9 @@ Path: /api/typ01/url/ncei_gsom_data.php
 Path:
 /api/typ01/url/ncei_gsom_file.php
 파라미터: stn"""
-        return self.call_endpoint('ncei_gsom_file', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsom_file', params, use_sample=use_sample))
 
-    def ncei_gsom_list(
+    async def ncei_gsom_list(
         self,
         *,
         use_sample: bool = False,
@@ -13003,9 +12968,9 @@ Path:
 
 Path: /api/typ01/url/ncei_gsom_list.php
 파라미터: 없음"""
-        return self.call_endpoint('ncei_gsom_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsom_list', params, use_sample=use_sample))
 
-    def ncei_gsoy_data(
+    async def ncei_gsoy_data(
         self,
         *,
         use_sample: bool = False,
@@ -13015,9 +12980,9 @@ Path: /api/typ01/url/ncei_gsom_list.php
 
 Path: /api/typ01/url/ncei_gsoy_data.php
 파라미터: tm, stns"""
-        return self.call_endpoint('ncei_gsoy_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsoy_data', params, use_sample=use_sample))
 
-    def ncei_gsoy_data_2(
+    async def ncei_gsoy_data_2(
         self,
         *,
         use_sample: bool = False,
@@ -13027,9 +12992,9 @@ Path: /api/typ01/url/ncei_gsoy_data.php
 
 Path: /api/typ01/url/ncei_gsoy_data.php
 파라미터: tm1, tm2, stns"""
-        return self.call_endpoint('ncei_gsoy_data_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsoy_data_2', params, use_sample=use_sample))
 
-    def ncei_gsoy_data_3(
+    async def ncei_gsoy_data_3(
         self,
         *,
         use_sample: bool = False,
@@ -13039,9 +13004,9 @@ Path: /api/typ01/url/ncei_gsoy_data.php
 
 Path: /api/typ01/url/ncei_gsoy_data.php
 파라미터: tm, lon1, lon2, lat1, lat2"""
-        return self.call_endpoint('ncei_gsoy_data_3', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsoy_data_3', params, use_sample=use_sample))
 
-    def ncei_gsoy_file(
+    async def ncei_gsoy_file(
         self,
         *,
         use_sample: bool = False,
@@ -13052,9 +13017,9 @@ Path: /api/typ01/url/ncei_gsoy_data.php
 Path:
 /api/typ01/url/ncei_gsoy_file.php
 파라미터: stn"""
-        return self.call_endpoint('ncei_gsoy_file', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsoy_file', params, use_sample=use_sample))
 
-    def ncei_gsoy_list(
+    async def ncei_gsoy_list(
         self,
         *,
         use_sample: bool = False,
@@ -13064,9 +13029,9 @@ Path:
 
 Path: /api/typ01/url/ncei_gsoy_list.php
 파라미터: 없음"""
-        return self.call_endpoint('ncei_gsoy_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsoy_list', params, use_sample=use_sample))
 
-    def ncei_upp_data(
+    async def ncei_upp_data(
         self,
         *,
         use_sample: bool = False,
@@ -13076,9 +13041,9 @@ Path: /api/typ01/url/ncei_gsoy_list.php
 
 Path: /api/typ01/url/ncei_upp_data.php
 파라미터: tm, stns"""
-        return self.call_endpoint('ncei_upp_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_upp_data', params, use_sample=use_sample))
 
-    def ncei_upp_data_2(
+    async def ncei_upp_data_2(
         self,
         *,
         use_sample: bool = False,
@@ -13088,9 +13053,9 @@ Path: /api/typ01/url/ncei_upp_data.php
 
 Path: /api/typ01/url/ncei_upp_data.php
 파라미터: tm1, tm2, stns"""
-        return self.call_endpoint('ncei_upp_data_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_upp_data_2', params, use_sample=use_sample))
 
-    def ncei_upp_data_3(
+    async def ncei_upp_data_3(
         self,
         *,
         use_sample: bool = False,
@@ -13100,9 +13065,9 @@ Path: /api/typ01/url/ncei_upp_data.php
 
 Path: /api/typ01/url/ncei_upp_data.php
 파라미터: tm, lon1, lon2, lat1, lat2"""
-        return self.call_endpoint('ncei_upp_data_3', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_upp_data_3', params, use_sample=use_sample))
 
-    def ncei_upp_file(
+    async def ncei_upp_file(
         self,
         *,
         use_sample: bool = False,
@@ -13113,9 +13078,9 @@ Path: /api/typ01/url/ncei_upp_data.php
 Path:
 /api/typ01/url/ncei_upp_file.php
 파라미터: stn"""
-        return self.call_endpoint('ncei_upp_file', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_upp_file', params, use_sample=use_sample))
 
-    def ncei_upp_list(
+    async def ncei_upp_list(
         self,
         *,
         use_sample: bool = False,
@@ -13125,9 +13090,9 @@ Path:
 
 Path: /api/typ01/url/ncei_upp_list.php
 파라미터: 없음"""
-        return self.call_endpoint('ncei_upp_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_upp_list', params, use_sample=use_sample))
 
-    def ncei_gsea_data(
+    async def ncei_gsea_data(
         self,
         *,
         use_sample: bool = False,
@@ -13138,9 +13103,9 @@ Path: /api/typ01/url/ncei_upp_list.php
 Path:
 /api/typ01/url/ncei_gsea_data.php
 파라미터: tm, stns"""
-        return self.call_endpoint('ncei_gsea_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsea_data', params, use_sample=use_sample))
 
-    def ncei_gsea_data_2(
+    async def ncei_gsea_data_2(
         self,
         *,
         use_sample: bool = False,
@@ -13151,9 +13116,9 @@ Path:
 Path:
 /api/typ01/url/ncei_gsea_data.php
 파라미터: tm1, tm2, stns"""
-        return self.call_endpoint('ncei_gsea_data_2', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsea_data_2', params, use_sample=use_sample))
 
-    def ncei_gsea_data_3(
+    async def ncei_gsea_data_3(
         self,
         *,
         use_sample: bool = False,
@@ -13164,9 +13129,9 @@ Path:
 Path:
 /api/typ01/url/ncei_gsea_data.php
 파라미터: tm1, tm2, lon1, lon2, lat1, lat2"""
-        return self.call_endpoint('ncei_gsea_data_3', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsea_data_3', params, use_sample=use_sample))
 
-    def ncei_gsea_file(
+    async def ncei_gsea_file(
         self,
         *,
         use_sample: bool = False,
@@ -13177,9 +13142,9 @@ Path:
 Path:
 /api/typ01/url/ncei_gsea_file.php
 파라미터: YM, file"""
-        return self.call_endpoint('ncei_gsea_file', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsea_file', params, use_sample=use_sample))
 
-    def ncei_gsea_list(
+    async def ncei_gsea_list(
         self,
         *,
         use_sample: bool = False,
@@ -13190,9 +13155,9 @@ Path:
 Path:
 /api/typ01/url/ncei_gsea_list.php
 파라미터: YM"""
-        return self.call_endpoint('ncei_gsea_list', params, use_sample=use_sample)
+        return (await self.call_endpoint('ncei_gsea_list', params, use_sample=use_sample))
 
-    def amm_iwxxm_service_get_metar(
+    async def amm_iwxxm_service_get_metar(
         self,
         *,
         use_sample: bool = False,
@@ -13202,9 +13167,9 @@ Path:
 
 Path: /api/typ02/openApi/AmmIwxxmService/getMetar
 파라미터: pageNo, numOfRows, dataType, icao"""
-        return self.call_endpoint('amm_iwxxm_service_get_metar', params, use_sample=use_sample)
+        return (await self.call_endpoint('amm_iwxxm_service_get_metar', params, use_sample=use_sample))
 
-    def air_metar_dec(
+    async def air_metar_dec(
         self,
         *,
         use_sample: bool = False,
@@ -13215,9 +13180,9 @@ Path: /api/typ02/openApi/AmmIwxxmService/getMetar
 Path: /api/typ01/url/air_metar_dec.php
 파라미터: tm, org,
 help"""
-        return self.call_endpoint('air_metar_dec', params, use_sample=use_sample)
+        return (await self.call_endpoint('air_metar_dec', params, use_sample=use_sample))
 
-    def sfc_yearly_info_service_getr_air_stn_lst_tbl(
+    async def sfc_yearly_info_service_getr_air_stn_lst_tbl(
         self,
         *,
         use_sample: bool = False,
@@ -13229,9 +13194,9 @@ Path:
 /api/typ02/openApi/SfcYearlyInfoService/getrAirStnLstTbl
 파라미터: pageNo, numOfRows,
 dataType, year"""
-        return self.call_endpoint('sfc_yearly_info_service_getr_air_stn_lst_tbl', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_yearly_info_service_getr_air_stn_lst_tbl', params, use_sample=use_sample))
 
-    def sfc_yearly_info_service_get_air_stn_info(
+    async def sfc_yearly_info_service_get_air_stn_info(
         self,
         *,
         use_sample: bool = False,
@@ -13243,9 +13208,9 @@ Path:
 /api/typ02/openApi/SfcYearlyInfoService/getAirStnInfo
 파라미터: pageNo, numOfRows, dataType,
 year, station"""
-        return self.call_endpoint('sfc_yearly_info_service_get_air_stn_info', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_yearly_info_service_get_air_stn_info', params, use_sample=use_sample))
 
-    def sfc_yearly_info_service_get_air_stn_info2(
+    async def sfc_yearly_info_service_get_air_stn_info2(
         self,
         *,
         use_sample: bool = False,
@@ -13257,9 +13222,9 @@ Path:
 /api/typ02/openApi/SfcYearlyInfoService/getAirStnInfo2
 파라미터: pageNo, numOfRows,
 dataType, year, station"""
-        return self.call_endpoint('sfc_yearly_info_service_get_air_stn_info2', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_yearly_info_service_get_air_stn_info2', params, use_sample=use_sample))
 
-    def sfc_yearly_info_service_get_air_stn_info3(
+    async def sfc_yearly_info_service_get_air_stn_info3(
         self,
         *,
         use_sample: bool = False,
@@ -13271,9 +13236,9 @@ Path:
 /api/typ02/openApi/SfcYearlyInfoService/getAirStnInfo3
 파라미터: pageNo, numOfRows,
 dataType, year, station"""
-        return self.call_endpoint('sfc_yearly_info_service_get_air_stn_info3', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_yearly_info_service_get_air_stn_info3', params, use_sample=use_sample))
 
-    def sfc_yearly_info_service_get_sfc_stn_lst_tbl(
+    async def sfc_yearly_info_service_get_sfc_stn_lst_tbl(
         self,
         *,
         use_sample: bool = False,
@@ -13285,9 +13250,9 @@ Path:
 /api/typ02/openApi/SfcYearlyInfoService/getSfcStnLstTbl
 파라미터: pageNo, numOfRows,
 dataType, year"""
-        return self.call_endpoint('sfc_yearly_info_service_get_sfc_stn_lst_tbl', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_yearly_info_service_get_sfc_stn_lst_tbl', params, use_sample=use_sample))
 
-    def sfc_yearly_info_service_get_note(
+    async def sfc_yearly_info_service_get_note(
         self,
         *,
         use_sample: bool = False,
@@ -13297,9 +13262,9 @@ dataType, year"""
 
 Path: /api/typ02/openApi/SfcYearlyInfoService/getNote
 파라미터: pageNo, numOfRows, dataType, year"""
-        return self.call_endpoint('sfc_yearly_info_service_get_note', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_yearly_info_service_get_note', params, use_sample=use_sample))
 
-    def sfc_mtly_info_service_get_daily_air_data(
+    async def sfc_mtly_info_service_get_daily_air_data(
         self,
         *,
         use_sample: bool = False,
@@ -13311,9 +13276,9 @@ Path:
 /api/typ02/openApi/SfcMtlyInfoService/getDailyAirData
 파라미터: pageNo, numOfRows, dataType,
 year, month, station"""
-        return self.call_endpoint('sfc_mtly_info_service_get_daily_air_data', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_mtly_info_service_get_daily_air_data', params, use_sample=use_sample))
 
-    def sfc_mtly_info_service_getr_air_stn_lst_tbl(
+    async def sfc_mtly_info_service_getr_air_stn_lst_tbl(
         self,
         *,
         use_sample: bool = False,
@@ -13325,9 +13290,9 @@ Path:
 /api/typ02/openApi/SfcMtlyInfoService/getrAirStnLstTbl
 파라미터: pageNo, numOfRows,
 dataType, year, month"""
-        return self.call_endpoint('sfc_mtly_info_service_getr_air_stn_lst_tbl', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_mtly_info_service_getr_air_stn_lst_tbl', params, use_sample=use_sample))
 
-    def sfc_mtly_info_service_get_air_note(
+    async def sfc_mtly_info_service_get_air_note(
         self,
         *,
         use_sample: bool = False,
@@ -13339,9 +13304,9 @@ Path:
 /api/typ02/openApi/SfcMtlyInfoService/getAirNote
 파라미터: pageNo, numOfRows, dataType,
 year, month"""
-        return self.call_endpoint('sfc_mtly_info_service_get_air_note', params, use_sample=use_sample)
+        return (await self.call_endpoint('sfc_mtly_info_service_get_air_note', params, use_sample=use_sample))
 
-    def kma_air_tm(
+    async def kma_air_tm(
         self,
         *,
         use_sample: bool = False,
@@ -13351,9 +13316,9 @@ year, month"""
 
 Path: /api/typ01/url/kma_air_tm.php
 파라미터: tm1, tm2, stn, help"""
-        return self.call_endpoint('kma_air_tm', params, use_sample=use_sample)
+        return (await self.call_endpoint('kma_air_tm', params, use_sample=use_sample))
 
-    def amos(
+    async def amos(
         self,
         *,
         use_sample: bool = False,
@@ -13363,9 +13328,9 @@ Path: /api/typ01/url/kma_air_tm.php
 
 Path: /api/typ01/url/amos.php
 파라미터: tm, dtm, stn, help"""
-        return self.call_endpoint('amos', params, use_sample=use_sample)
+        return (await self.call_endpoint('amos', params, use_sample=use_sample))
 
-    def air_info_service_get_air_info(
+    async def air_info_service_get_air_info(
         self,
         *,
         use_sample: bool = False,
@@ -13375,9 +13340,9 @@ Path: /api/typ01/url/amos.php
 
 Path: /api/typ02/openApi/AirInfoService/getAirInfo
 파라미터: numOfRows, pageNo, dataType, fctm, icaoCode"""
-        return self.call_endpoint('air_info_service_get_air_info', params, use_sample=use_sample)
+        return (await self.call_endpoint('air_info_service_get_air_info', params, use_sample=use_sample))
 
-    def amm_iwxxm_service_get_taf(
+    async def amm_iwxxm_service_get_taf(
         self,
         *,
         use_sample: bool = False,
@@ -13388,9 +13353,9 @@ Path: /api/typ02/openApi/AirInfoService/getAirInfo
 Path: /api/typ02/openApi/AmmIwxxmService/getTaf
 파라미터:
 pageNo, numOfRows, dataType, icao"""
-        return self.call_endpoint('amm_iwxxm_service_get_taf', params, use_sample=use_sample)
+        return (await self.call_endpoint('amm_iwxxm_service_get_taf', params, use_sample=use_sample))
 
-    def amm_iwxxm_service_get_sigmet(
+    async def amm_iwxxm_service_get_sigmet(
         self,
         *,
         use_sample: bool = False,
@@ -13400,9 +13365,9 @@ pageNo, numOfRows, dataType, icao"""
 
 Path: /api/typ02/openApi/AmmIwxxmService/getSigmet
 파라미터: pageNo, numOfRows, dataType"""
-        return self.call_endpoint('amm_iwxxm_service_get_sigmet', params, use_sample=use_sample)
+        return (await self.call_endpoint('amm_iwxxm_service_get_sigmet', params, use_sample=use_sample))
 
-    def amm_iwxxm_service_get_airmet(
+    async def amm_iwxxm_service_get_airmet(
         self,
         *,
         use_sample: bool = False,
@@ -13412,9 +13377,9 @@ Path: /api/typ02/openApi/AmmIwxxmService/getSigmet
 
 Path: /api/typ02/openApi/AmmIwxxmService/getAirmet
 파라미터: pageNo, numOfRows, dataType"""
-        return self.call_endpoint('amm_iwxxm_service_get_airmet', params, use_sample=use_sample)
+        return (await self.call_endpoint('amm_iwxxm_service_get_airmet', params, use_sample=use_sample))
 
-    def aftn_amm_service_get_metar(
+    async def aftn_amm_service_get_metar(
         self,
         *,
         use_sample: bool = False,
@@ -13425,9 +13390,9 @@ Path: /api/typ02/openApi/AmmIwxxmService/getAirmet
 Path:
 /api/typ02/openApi/AftnAmmService/getMetar
 파라미터: pageNo, numOfRows, dataType, icao"""
-        return self.call_endpoint('aftn_amm_service_get_metar', params, use_sample=use_sample)
+        return (await self.call_endpoint('aftn_amm_service_get_metar', params, use_sample=use_sample))
 
-    def aftn_amm_service_get_sigmet(
+    async def aftn_amm_service_get_sigmet(
         self,
         *,
         use_sample: bool = False,
@@ -13437,9 +13402,9 @@ Path:
 
 Path: /api/typ02/openApi/AftnAmmService/getSigmet
 파라미터: pageNo, numOfRows, dataType, icao"""
-        return self.call_endpoint('aftn_amm_service_get_sigmet', params, use_sample=use_sample)
+        return (await self.call_endpoint('aftn_amm_service_get_sigmet', params, use_sample=use_sample))
 
-    def aftn_amm_service_get_taf(
+    async def aftn_amm_service_get_taf(
         self,
         *,
         use_sample: bool = False,
@@ -13450,9 +13415,9 @@ Path: /api/typ02/openApi/AftnAmmService/getSigmet
 Path: /api/typ02/openApi/AftnAmmService/getTaf
 파라미터:
 pageNo, numOfRows, dataType, icao"""
-        return self.call_endpoint('aftn_amm_service_get_taf', params, use_sample=use_sample)
+        return (await self.call_endpoint('aftn_amm_service_get_taf', params, use_sample=use_sample))
 
-    def amm_service_get_taf(
+    async def amm_service_get_taf(
         self,
         *,
         use_sample: bool = False,
@@ -13463,9 +13428,9 @@ pageNo, numOfRows, dataType, icao"""
 Path: /api/typ02/openApi/AmmService/getTaf
 파라미터: pageNo,
 numOfRows, dataType, icao"""
-        return self.call_endpoint('amm_service_get_taf', params, use_sample=use_sample)
+        return (await self.call_endpoint('amm_service_get_taf', params, use_sample=use_sample))
 
-    def amm_service_get_airmet(
+    async def amm_service_get_airmet(
         self,
         *,
         use_sample: bool = False,
@@ -13476,9 +13441,9 @@ numOfRows, dataType, icao"""
 Path: /api/typ02/openApi/AmmService/getAirmet
 파라미터:
 pageNo, numOfRows, dataType"""
-        return self.call_endpoint('amm_service_get_airmet', params, use_sample=use_sample)
+        return (await self.call_endpoint('amm_service_get_airmet', params, use_sample=use_sample))
 
-    def amm_service_get_sigmet(
+    async def amm_service_get_sigmet(
         self,
         *,
         use_sample: bool = False,
@@ -13489,9 +13454,9 @@ pageNo, numOfRows, dataType"""
 Path: /api/typ02/openApi/AmmService/getSigmet
 파라미터:
 pageNo, numOfRows, dataType"""
-        return self.call_endpoint('amm_service_get_sigmet', params, use_sample=use_sample)
+        return (await self.call_endpoint('amm_service_get_sigmet', params, use_sample=use_sample))
 
-    def amm_service_get_warning(
+    async def amm_service_get_warning(
         self,
         *,
         use_sample: bool = False,
@@ -13502,9 +13467,9 @@ pageNo, numOfRows, dataType"""
 Path: /api/typ02/openApi/AmmService/getWarning
 파라미터:
 pageNo, numOfRows, dataType"""
-        return self.call_endpoint('amm_service_get_warning', params, use_sample=use_sample)
+        return (await self.call_endpoint('amm_service_get_warning', params, use_sample=use_sample))
 
-    def amdar_kma(
+    async def amdar_kma(
         self,
         *,
         use_sample: bool = False,
@@ -13514,9 +13479,9 @@ pageNo, numOfRows, dataType"""
 
 Path: /api/typ01/url/amdar_kma.php
 파라미터: tm1, tm2, st, help"""
-        return self.call_endpoint('amdar_kma', params, use_sample=use_sample)
+        return (await self.call_endpoint('amdar_kma', params, use_sample=use_sample))
 
-    def air_port_service_get_air_port(
+    async def air_port_service_get_air_port(
         self,
         *,
         use_sample: bool = False,
@@ -13526,9 +13491,9 @@ Path: /api/typ01/url/amdar_kma.php
 
 Path: /api/typ02/openApi/AirPortService/getAirPort
 파라미터: numOfRows, pageNo, dataType, base_date, base_time, airPortCd"""
-        return self.call_endpoint('air_port_service_get_air_port', params, use_sample=use_sample)
+        return (await self.call_endpoint('air_port_service_get_air_port', params, use_sample=use_sample))
 
-    def amo_sigwx(
+    async def amo_sigwx(
         self,
         *,
         use_sample: bool = False,
@@ -13539,9 +13504,9 @@ Path: /api/typ02/openApi/AirPortService/getAirPort
 Path: /api/typ01/url/amo_sigwx.php
 파라미터:
 tmfc"""
-        return self.call_endpoint('amo_sigwx', params, use_sample=use_sample)
+        return (await self.call_endpoint('amo_sigwx', params, use_sample=use_sample))
 
-    def amo_wintem(
+    async def amo_wintem(
         self,
         *,
         use_sample: bool = False,
@@ -13552,9 +13517,9 @@ tmfc"""
 Path:
 /api/typ01/url/amo_wintem.php
 파라미터: tmfc, ef, ht"""
-        return self.call_endpoint('amo_wintem', params, use_sample=use_sample)
+        return (await self.call_endpoint('amo_wintem', params, use_sample=use_sample))
 
-    def amo_nwp_file_down(
+    async def amo_nwp_file_down(
         self,
         *,
         use_sample: bool = False,
@@ -13565,9 +13530,9 @@ Path:
 Path:
 /api/typ01/url/amo_nwp_file_down.php
 파라미터: tmfc, ef"""
-        return self.call_endpoint('amo_nwp_file_down', params, use_sample=use_sample)
+        return (await self.call_endpoint('amo_nwp_file_down', params, use_sample=use_sample))
 
-    def lidar(
+    async def lidar(
         self,
         *,
         use_sample: bool = False,
@@ -13578,7 +13543,7 @@ Path:
 Path: /api/typ01/url/lidar.php
 파라미터: tm, stn, var,
 altitude"""
-        return self.call_endpoint('lidar', params, use_sample=use_sample)
+        return (await self.call_endpoint('lidar', params, use_sample=use_sample))
 
 
 __all__ = [

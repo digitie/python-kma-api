@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import sys
 from collections.abc import Sequence
@@ -14,6 +15,10 @@ from .client import KmaClient
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    return asyncio.run(_main(argv))
+
+
+async def _main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="kma")
     parser.add_argument(
         "--service-key",
@@ -55,11 +60,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.auth_key:
             _warn_argv_secret("--auth-key", "KMA_APIHUB_AUTH_KEY")
         apihub_client = (
-            ApiHubClient(auth_key=args.auth_key)
-            if args.auth_key
-            else ApiHubClient.from_env()
+            ApiHubClient(auth_key=args.auth_key) if args.auth_key else ApiHubClient.from_env()
         )
-        response = apihub_client.request_path(args.path, params)
+        async with apihub_client:
+            response = await apihub_client.request_path(args.path, params)
         print(response.text)
         return 0
 
@@ -67,29 +71,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.service_key:
         _warn_argv_secret("--service-key", "DATA_GO_KR_SERVICE_KEY")
     kma_client = (
-        KmaClient(service_key=args.service_key)
-        if args.service_key
-        else KmaClient.from_env()
+        KmaClient(service_key=args.service_key) if args.service_key else KmaClient.from_env()
     )
 
-    if args.command == "now":
-        print(
-            json.dumps(
-                _jsonable(_now(kma_client, location)),
-                ensure_ascii=False,
-                default=str,
-                indent=2,
+    async with kma_client:
+        if args.command == "now":
+            print(
+                json.dumps(
+                    _jsonable(await _now(kma_client, location)),
+                    ensure_ascii=False,
+                    default=str,
+                    indent=2,
+                )
             )
-        )
-        return 0
+            return 0
 
-    forecast = (
-        _forecast_short(kma_client, location)
-        if args.short
-        else _forecast(kma_client, location)
-    )
-    print(json.dumps(_jsonable(forecast), ensure_ascii=False, default=str, indent=2))
-    return 0
+        forecast = (
+            (await _forecast_short(kma_client, location))
+            if args.short
+            else (await _forecast(kma_client, location))
+        )
+        print(json.dumps(_jsonable(forecast), ensure_ascii=False, default=str, indent=2))
+        return 0
 
 
 def _warn_argv_secret(flag: str, env_var: str) -> None:
@@ -128,22 +131,22 @@ def _location_kwargs(args: argparse.Namespace) -> dict[str, float | int]:
     return {"nx": args.nx, "ny": args.ny}
 
 
-def _now(client: KmaClient, location: dict[str, float | int]) -> Any:
+async def _now(client: KmaClient, location: dict[str, float | int]) -> Any:
     if "lat" in location:
-        return client.now(lat=float(location["lat"]), lon=float(location["lon"]))
-    return client.now(nx=int(location["nx"]), ny=int(location["ny"]))
+        return await client.now(lat=float(location["lat"]), lon=float(location["lon"]))
+    return await client.now(nx=int(location["nx"]), ny=int(location["ny"]))
 
 
-def _forecast_short(client: KmaClient, location: dict[str, float | int]) -> Any:
+async def _forecast_short(client: KmaClient, location: dict[str, float | int]) -> Any:
     if "lat" in location:
-        return client.forecast_short(lat=float(location["lat"]), lon=float(location["lon"]))
-    return client.forecast_short(nx=int(location["nx"]), ny=int(location["ny"]))
+        return await client.forecast_short(lat=float(location["lat"]), lon=float(location["lon"]))
+    return await client.forecast_short(nx=int(location["nx"]), ny=int(location["ny"]))
 
 
-def _forecast(client: KmaClient, location: dict[str, float | int]) -> Any:
+async def _forecast(client: KmaClient, location: dict[str, float | int]) -> Any:
     if "lat" in location:
-        return client.forecast(lat=float(location["lat"]), lon=float(location["lon"]))
-    return client.forecast(nx=int(location["nx"]), ny=int(location["ny"]))
+        return await client.forecast(lat=float(location["lat"]), lon=float(location["lon"]))
+    return await client.forecast(nx=int(location["nx"]), ny=int(location["ny"]))
 
 
 def _parse_params(values: list[str]) -> dict[str, str]:

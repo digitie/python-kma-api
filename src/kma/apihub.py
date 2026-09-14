@@ -8,7 +8,7 @@ import io
 import json
 import re
 import time
-from collections.abc import AsyncIterator, Iterable, Iterator, Mapping
+from collections.abc import AsyncIterator, Iterable, Mapping
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Any
@@ -19,17 +19,18 @@ import httpx
 from ._credentials import APIHUB_ENV_NAMES, first_env_value, normalize_api_key
 from ._http import (
     NO_DATA_RESULT_CODE,
-    async_get_with_retries,
     build_async_client,
-    build_session,
     get_with_retries,
     raise_for_kma_http_error,
     raise_for_kma_network_error,
     raise_for_kma_result_code,
     raise_for_kma_xml_error_body,
+    validate_async_session,
 )
+from ._ratelimit import AsyncTokenBucket
+from ._redact import credential_values, redact_debug, redact_exception
 from .debug import DebugRun, debug_error, redact_sensitive
-from .exceptions import KmaParseError
+from .exceptions import KmaError, KmaParseError
 from .metadata import (
     ResponseMetadata,
     is_credential_param,
@@ -37,7 +38,6 @@ from .metadata import (
     redact_credentials_in_text,
     request_params_from_url,
 )
-from .pagination import aiter_pages as _aiter_pages
 from .pagination import iter_pages as _iter_pages
 
 APIHUB_BASE_URL = "https://apihub.kma.go.kr"
@@ -178,76 +178,48 @@ class ApiHubClient:
         retries: int = 3,
         base_url: str = APIHUB_BASE_URL,
         session: Any | None = None,
-        async_session: Any | None = None,
+        max_rps: float = 5.0,
+        rate_limiter: AsyncTokenBucket | None = None,
     ) -> None:
         self.auth_key = normalize_api_key(auth_key, field_name="auth_key")
         self.timeout = timeout
         self.retries = retries
         self.base_url = _validate_apihub_base_url(base_url)
-        self.session = session or build_session(retries)
+        self._session = session
         self._owns_session = session is None
-        self._async_session = async_session
-        self._owns_async_session = async_session is None
+        validate_async_session(session)
+        self.rate_limiter = rate_limiter if rate_limiter is not None else AsyncTokenBucket(max_rps)
+        self.closed = False
+
+    def _ensure_open(self) -> None:
+        if self.closed:
+            raise RuntimeError("client is closed")
+
+    @property
+    def session(self) -> Any:
+        return self._get_session()
+
+    async def aclose(self) -> None:
+        if not self.closed:
+            self.closed = True
+            if self._owns_session and self._session is not None:
+                close = getattr(self._session, "aclose", None)
+                if callable(close):
+                    await close()
 
     @classmethod
     def from_env(cls, name: str = "KMA_APIHUB_AUTH_KEY", **kwargs: Any) -> ApiHubClient:
         auth_key = first_env_value((name, *APIHUB_ENV_NAMES))
         return cls(auth_key, **kwargs)
 
-    @classmethod
-    def aio(cls, auth_key: str, **kwargs: Any) -> AsyncApiHubClient:
-        """Create an async facade for the APIHub gateway."""
-
-        return AsyncApiHubClient(auth_key, **kwargs)
-
-    @classmethod
-    def aio_from_env(cls, name: str = "KMA_APIHUB_AUTH_KEY", **kwargs: Any) -> AsyncApiHubClient:
-        """Create an async facade from environment credentials."""
-
-        return AsyncApiHubClient.from_env(name=name, **kwargs)
-
-    def close(self) -> None:
-        close = getattr(self.session, "close", None)
-        if self._owns_session and close is not None:
-            close()
-
-    async def aclose(self) -> None:
-        if self._async_session is None or not self._owns_async_session:
-            return
-        aclose = getattr(self._async_session, "aclose", None)
-        close = getattr(self._async_session, "close", None)
-        if aclose is not None:
-            await aclose()
-        elif close is not None:
-            close()
-
-    def __enter__(self) -> ApiHubClient:
-        return self
-
-    def __exit__(self, *_exc: object) -> None:
-        self.close()
-
     async def __aenter__(self) -> ApiHubClient:
+        self._ensure_open()
         return self
 
     async def __aexit__(self, *_exc: object) -> None:
         await self.aclose()
 
-    def request_path(
-        self,
-        path: str,
-        params: Mapping[str, Any] | None = None,
-    ) -> ApiHubResponse:
-        """`/api/...` 아래 APIHub path를 호출하고 `authKey`를 추가합니다."""
-
-        clean_path = _normalize_apihub_path(path)
-        request_params: dict[str, Any] = {}
-        if params:
-            request_params.update(params)
-        request_params["authKey"] = self.auth_key
-        return self._get(clean_path, request_params)
-
-    async def arequest_path(
+    async def request_path(
         self,
         path: str,
         params: Mapping[str, Any] | None = None,
@@ -259,42 +231,9 @@ class ApiHubClient:
         if params:
             request_params.update(params)
         request_params["authKey"] = self.auth_key
-        return await self._aget(clean_path, request_params)
+        return await self._get(clean_path, request_params)
 
-    def request_query_parts(
-        self,
-        path: str,
-        query_parts: Iterable[tuple[str, str]],
-        params: Mapping[str, Any] | None = None,
-    ) -> ApiHubResponse:
-        """이름 없는 query string 조각이 있는 APIHub endpoint를 호출합니다.
-
-        일부 legacy 그래픽 endpoint는 ``...?202305031000&0&stn-list&authKey=...``
-        같은 URL을 사용합니다. 일반적인 key-value query parameter가 아니므로
-        `requests.get(..., params=...)`로 재현할 수 없습니다. `query_parts`는 각
-        항목을 `("bare", name)` 또는 `("named", name)`으로 저장하고, 이 메서드는
-        query string을 직접 직렬화합니다.
-        """
-
-        clean_path = _normalize_apihub_path(path)
-        values = dict(params or {})
-        fragments: list[str] = []
-        for kind, name in query_parts:
-            if name == "authKey":
-                continue
-            if name not in values:
-                continue
-            value = values[name]
-            if value is None:
-                continue
-            if kind == "bare":
-                fragments.append(_quote_query_value(value))
-            else:
-                fragments.append(f"{quote_plus(name)}={_quote_query_value(value)}")
-        fragments.append(f"authKey={_quote_query_value(self.auth_key)}")
-        return self._get_raw(f"{clean_path}?{'&'.join(fragments)}")
-
-    async def arequest_query_parts(
+    async def request_query_parts(
         self,
         path: str,
         query_parts: Iterable[tuple[str, str]],
@@ -318,33 +257,9 @@ class ApiHubClient:
             else:
                 fragments.append(f"{quote_plus(name)}={_quote_query_value(value)}")
         fragments.append(f"authKey={_quote_query_value(self.auth_key)}")
-        return await self._aget_raw(f"{clean_path}?{'&'.join(fragments)}")
+        return await self._get_raw(f"{clean_path}?{'&'.join(fragments)}")
 
-    def open_api(
-        self,
-        service: str,
-        operation: str,
-        params: Mapping[str, Any] | None = None,
-        *,
-        data_type: str = "JSON",
-        page_no: int = 1,
-        num_of_rows: int = 10,
-    ) -> ApiHubResponse:
-        """`/api/typ02/openApi/{service}/{operation}` endpoint를 호출합니다."""
-
-        request_params: dict[str, Any] = {
-            "pageNo": page_no,
-            "numOfRows": num_of_rows,
-            "dataType": data_type,
-        }
-        if params:
-            request_params.update(params)
-        endpoint = f"/api/typ02/openApi/{service.strip('/')}/{operation.strip('/')}"
-        response = self.request_path(endpoint, request_params)
-        _check_apihub_result_code(response, endpoint=endpoint)
-        return response
-
-    async def aopen_api(
+    async def open_api(
         self,
         service: str,
         operation: str,
@@ -364,57 +279,43 @@ class ApiHubClient:
         if params:
             request_params.update(params)
         endpoint = f"/api/typ02/openApi/{service.strip('/')}/{operation.strip('/')}"
-        response = await self.arequest_path(endpoint, request_params)
-        _check_apihub_result_code(response, endpoint=endpoint)
+        response = await self.request_path(endpoint, request_params)
+        try:
+            _check_apihub_result_code(response, endpoint=endpoint)
+        except KmaError as exc:
+            redact_exception(exc, self.auth_key, *credential_values(params))
+            raise exc from None
         return response
 
-    def discover_services(
-        self,
-        category_ids: tuple[int, ...] = APIHUB_CATEGORY_IDS,
-    ) -> list[ApiHubService]:
-        """공식 category id 목록에 대한 APIHub service 목록을 가져옵니다."""
-
-        services: list[ApiHubService] = []
-        for category_id in category_ids:
-            response = self._portal_get("/apiList.do", {"seqApi": category_id})
-            services.extend(parse_apihub_services(response.text, category_id))
-        return services
-
-    async def adiscover_services(
+    async def discover_services(
         self,
         category_ids: tuple[int, ...] = APIHUB_CATEGORY_IDS,
     ) -> list[ApiHubService]:
         """Asynchronously fetch APIHub service metadata."""
+        try:
+            services: list[ApiHubService] = []
+            for category_id in category_ids:
+                response = await self._portal_get("/apiList.do", {"seqApi": category_id})
+                services.extend(parse_apihub_services(response.text, category_id))
+            return services
+        except KmaError as exc:
+            redact_exception(exc, self.auth_key, *credential_values(None))
+            raise exc from None
 
-        services: list[ApiHubService] = []
-        for category_id in category_ids:
-            response = await self._aportal_get("/apiList.do", {"seqApi": category_id})
-            services.extend(parse_apihub_services(response.text, category_id))
-        return services
-
-    def discover_endpoints(self, category_id: int, service_id: int) -> list[ApiHubEndpoint]:
-        """하나의 APIHub service page에서 endpoint 예제를 가져옵니다."""
-
-        response = self._portal_get(
-            "/apiList.do",
-            {"seqApi": category_id, "seqApiSub": service_id},
-        )
-        return extract_apihub_endpoints(response.text)
-
-    async def adiscover_endpoints(
+    async def discover_endpoints(
         self,
         category_id: int,
         service_id: int,
     ) -> list[ApiHubEndpoint]:
         """Asynchronously fetch endpoint samples for one APIHub service page."""
 
-        response = await self._aportal_get(
+        response = await self._portal_get(
             "/apiList.do",
             {"seqApi": category_id, "seqApiSub": service_id},
         )
         return extract_apihub_endpoints(response.text)
 
-    def debug_fetch_endpoint(
+    async def debug_fetch_endpoint(
         self,
         spec: ApiHubEndpointSpec,
         params: Mapping[str, Any] | None = None,
@@ -434,105 +335,86 @@ class ApiHubClient:
         나머지는 `request_path`로 호출을 위임합니다(``ApiHubGeneratedClient
         .call_endpoint``와 같은 판정 규칙).
         """
-
-        request_params: dict[str, Any] = {}
-        if use_sample:
-            request_params.update(spec.sample_params)
-        if params:
-            request_params.update(params)
-
-        input_data = redact_sensitive(
-            {
-                "endpoint": spec.name,
-                "params": request_params,
-                "use_sample": use_sample,
-            }
-        )
-        trace = [
-            f"APIHub {spec.name} ({spec.path}) 호출 준비",
-            f"response_kind={spec.response_kind}",
-        ]
-        request_info = redact_sensitive(
-            {
-                "method": "GET",
-                "url": f"{self.base_url}{spec.path}",
-                "query": request_params,
-            }
-        )
-
-        started_at = time.monotonic()
         try:
-            if any(kind == "bare" for kind, _name in spec.query_parts):
-                response = self.request_query_parts(spec.path, spec.query_parts, request_params)
-            else:
-                response = self.request_path(spec.path, request_params)
-        except Exception as exc:
-            elapsed_ms = (time.monotonic() - started_at) * 1000
-            trace.append(f"요청 실패: {exc.__class__.__name__} ({elapsed_ms:.0f}ms)")
-            return DebugRun(
-                function=spec.name,
-                input=input_data,
-                request=request_info,
-                response={},
-                parsed=None,
-                processed=None,
-                trace=trace,
-                error=debug_error(exc),
+            request_params: dict[str, Any] = {}
+            if use_sample:
+                request_params.update(spec.sample_params)
+            if params:
+                request_params.update(params)
+
+            input_data = redact_sensitive(
+                {
+                    "endpoint": spec.name,
+                    "params": request_params,
+                    "use_sample": use_sample,
+                }
+            )
+            trace = [
+                f"APIHub {spec.name} ({spec.path}) 호출 준비",
+                f"response_kind={spec.response_kind}",
+            ]
+            request_info = redact_sensitive(
+                {
+                    "method": "GET",
+                    "url": f"{self.base_url}{spec.path}",
+                    "query": request_params,
+                }
             )
 
-        elapsed_ms = (time.monotonic() - started_at) * 1000
-        trace.append(
-            f"응답 수신: HTTP {response.status_code}, {len(response.content)} bytes "
-            f"({elapsed_ms:.0f}ms)"
-        )
-        parsed, processed = _debug_parse_apihub_response(response, spec.response_kind)
-        return DebugRun(
-            function=spec.name,
-            input=input_data,
-            request=request_info,
-            response={
-                "status_code": response.status_code,
-                "content_type": response.content_type,
-                "body": parsed,
-            },
-            parsed=parsed,
-            processed=processed,
-            trace=trace,
-        )
+            started_at = time.monotonic()
+            try:
+                if any(kind == "bare" for kind, _name in spec.query_parts):
+                    response = await self.request_query_parts(
+                        spec.path, spec.query_parts, request_params
+                    )
+                else:
+                    response = await self.request_path(spec.path, request_params)
+            except Exception as exc:
+                elapsed_ms = (time.monotonic() - started_at) * 1000
+                trace.append(f"요청 실패: {exc.__class__.__name__} ({elapsed_ms:.0f}ms)")
+                return redact_debug(
+                    DebugRun(
+                        function=spec.name,
+                        input=input_data,
+                        request=request_info,
+                        response={},
+                        parsed=None,
+                        processed=None,
+                        trace=trace,
+                        error=debug_error(exc),
+                    ),
+                    self.auth_key,
+                    *credential_values(params),
+                )
 
-    def iter_pages(
-        self,
-        service: str,
-        operation: str,
-        params: Mapping[str, Any] | None = None,
-        *,
-        data_type: str = "JSON",
-        start_page: int = 1,
-        num_of_rows: int = 10,
-        max_pages: int = 100,
-        max_items: int | None = None,
-    ) -> Iterator[Mapping[str, Any]]:
-        """명시적 안전장치와 함께 APIHub `open_api` 페이지네이션 응답 body를 순회합니다."""
-
-        endpoint = f"/api/typ02/openApi/{service.strip('/')}/{operation.strip('/')}"
-        return _iter_pages(
-            lambda page_no: _apihub_open_api_body(
-                self.open_api(
-                    service,
-                    operation,
-                    params,
-                    data_type=data_type,
-                    page_no=page_no,
-                    num_of_rows=num_of_rows,
+            elapsed_ms = (time.monotonic() - started_at) * 1000
+            trace.append(
+                f"응답 수신: HTTP {response.status_code}, {len(response.content)} bytes "
+                f"({elapsed_ms:.0f}ms)"
+            )
+            parsed, processed = _debug_parse_apihub_response(response, spec.response_kind)
+            return redact_debug(
+                DebugRun(
+                    function=spec.name,
+                    input=input_data,
+                    request=request_info,
+                    response={
+                        "status_code": response.status_code,
+                        "content_type": response.content_type,
+                        "body": parsed,
+                    },
+                    parsed=parsed,
+                    processed=processed,
+                    trace=trace,
                 ),
-                endpoint=endpoint,
-            ),
-            start_page=start_page,
-            max_pages=max_pages,
-            max_items=max_items,
-        )
+                self.auth_key,
+                *credential_values(params),
+            )
+        except KmaError as exc:
+            redact_exception(exc, self.auth_key, *credential_values(params))
+            raise exc from None
 
-    async def aiter_pages(
+    async def iter_pages(
         self,
         service: str,
         operation: str,
@@ -545,241 +427,94 @@ class ApiHubClient:
         max_items: int | None = None,
     ) -> AsyncIterator[Mapping[str, Any]]:
         """Asynchronously iterate paginated APIHub `open_api` response bodies."""
+        try:
+            endpoint = f"/api/typ02/openApi/{service.strip('/')}/{operation.strip('/')}"
 
-        endpoint = f"/api/typ02/openApi/{service.strip('/')}/{operation.strip('/')}"
+            async def _fetch_page(page_no: int) -> Mapping[str, Any]:
+                response = await self.open_api(
+                    service,
+                    operation,
+                    params,
+                    data_type=data_type,
+                    page_no=page_no,
+                    num_of_rows=num_of_rows,
+                )
+                return _apihub_open_api_body(response, endpoint=endpoint)
 
-        async def _fetch_page(page_no: int) -> Mapping[str, Any]:
-            response = await self.aopen_api(
-                service,
-                operation,
-                params,
-                data_type=data_type,
-                page_no=page_no,
-                num_of_rows=num_of_rows,
-            )
-            return _apihub_open_api_body(response, endpoint=endpoint)
+            async for body in _iter_pages(
+                _fetch_page,
+                start_page=start_page,
+                max_pages=max_pages,
+                max_items=max_items,
+            ):
+                yield body
+        except KmaError as exc:
+            redact_exception(exc, self.auth_key, *credential_values(params))
+            raise exc from None
 
-        async for body in _aiter_pages(
-            _fetch_page,
-            start_page=start_page,
-            max_pages=max_pages,
-            max_items=max_items,
-        ):
-            yield body
+    async def _portal_get(self, path: str, params: Mapping[str, Any]) -> ApiHubResponse:
+        return await self._get(path, params)
 
-    def _portal_get(self, path: str, params: Mapping[str, Any]) -> ApiHubResponse:
-        return self._get(path, params)
-
-    async def _aportal_get(self, path: str, params: Mapping[str, Any]) -> ApiHubResponse:
-        return await self._aget(path, params)
-
-    def _get(self, path: str, params: Mapping[str, Any]) -> ApiHubResponse:
-        return self._get_url(
+    async def _get(self, path: str, params: Mapping[str, Any]) -> ApiHubResponse:
+        return await self._get_url(
             f"{self.base_url}/{path.lstrip('/')}",
             params=dict(params),
         )
 
-    async def _aget(self, path: str, params: Mapping[str, Any]) -> ApiHubResponse:
-        return await self._aget_url(
-            f"{self.base_url}/{path.lstrip('/')}",
-            params=dict(params),
-        )
+    async def _get_raw(self, path_with_query: str) -> ApiHubResponse:
+        return await self._get_url(f"{self.base_url}/{path_with_query.lstrip('/')}", params=None)
 
-    def _get_raw(self, path_with_query: str) -> ApiHubResponse:
-        return self._get_url(f"{self.base_url}/{path_with_query.lstrip('/')}", params=None)
-
-    async def _aget_raw(self, path_with_query: str) -> ApiHubResponse:
-        return await self._aget_url(f"{self.base_url}/{path_with_query.lstrip('/')}", params=None)
-
-    def _get_url(self, url: str, params: Mapping[str, Any] | None) -> ApiHubResponse:
-        endpoint = urlsplit(url).path
-        metadata = make_response_metadata(
-            provider="apihub",
-            service_name="APIHub",
-            endpoint=endpoint,
-            request_params=params if params is not None else request_params_from_url(url),
-        )
+    async def _get_url(self, url: str, params: Mapping[str, Any] | None) -> ApiHubResponse:
         try:
-            response = get_with_retries(
-                self.session,
-                url,
-                params=dict(params) if params is not None else None,
-                timeout=self.timeout,
-                retries=self.retries,
-            )
-        except httpx.HTTPStatusError as exc:
-            raise_for_kma_http_error(
-                exc,
+            endpoint = urlsplit(url).path
+            metadata = make_response_metadata(
                 provider="apihub",
+                service_name="APIHub",
                 endpoint=endpoint,
-                label="APIHub",
-                detail=_response_error_message(exc.response),
+                request_params=params if params is not None else request_params_from_url(url),
             )
-        except httpx.RequestError:
-            raise_for_kma_network_error(
-                provider="apihub",
-                endpoint=endpoint,
-                label="APIHub",
+            try:
+                response = await get_with_retries(
+                    self._get_session(),
+                    url,
+                    params=dict(params) if params is not None else None,
+                    timeout=self.timeout,
+                    retries=self.retries,
+                    rate_limiter=self.rate_limiter,
+                    ensure_open=self._ensure_open,
+                )
+            except httpx.HTTPStatusError as exc:
+                raise_for_kma_http_error(
+                    exc,
+                    provider="apihub",
+                    endpoint=endpoint,
+                    label="APIHub",
+                    detail=_response_error_message(exc.response),
+                )
+            except httpx.RequestError:
+                raise_for_kma_network_error(
+                    provider="apihub",
+                    endpoint=endpoint,
+                    label="APIHub",
+                )
+
+            content_type = response.headers.get("Content-Type", "")
+            return ApiHubResponse(
+                url=redact_url_credentials(str(response.url)),
+                status_code=response.status_code,
+                content_type=content_type,
+                content=response.content,
+                metadata=metadata,
             )
+        except KmaError as exc:
+            redact_exception(exc, self.auth_key, *credential_values(params))
+            raise exc from None
 
-        content_type = response.headers.get("Content-Type", "")
-        return ApiHubResponse(
-            url=redact_url_credentials(str(response.url)),
-            status_code=response.status_code,
-            content_type=content_type,
-            content=response.content,
-            metadata=metadata,
-        )
-
-    async def _aget_url(self, url: str, params: Mapping[str, Any] | None) -> ApiHubResponse:
-        endpoint = urlsplit(url).path
-        metadata = make_response_metadata(
-            provider="apihub",
-            service_name="APIHub",
-            endpoint=endpoint,
-            request_params=params if params is not None else request_params_from_url(url),
-        )
-        try:
-            response = await async_get_with_retries(
-                self._get_async_session(),
-                url,
-                params=dict(params) if params is not None else None,
-                timeout=self.timeout,
-                retries=self.retries,
-            )
-        except httpx.HTTPStatusError as exc:
-            raise_for_kma_http_error(
-                exc,
-                provider="apihub",
-                endpoint=endpoint,
-                label="APIHub",
-                detail=_response_error_message(exc.response),
-            )
-        except httpx.RequestError:
-            raise_for_kma_network_error(
-                provider="apihub",
-                endpoint=endpoint,
-                label="APIHub",
-            )
-
-        content_type = response.headers.get("Content-Type", "")
-        return ApiHubResponse(
-            url=redact_url_credentials(str(response.url)),
-            status_code=response.status_code,
-            content_type=content_type,
-            content=response.content,
-            metadata=metadata,
-        )
-
-    def _get_async_session(self) -> Any:
-        if self._async_session is None:
-            self._async_session = build_async_client()
-        return self._async_session
-
-
-class AsyncApiHubClient:
-    """Asynchronous facade for the APIHub gateway.
-
-    Mirrors :class:`AsyncKmaClient`: ``ApiHubClient.aio()`` returns one of
-    these, exposing the same method names as the synchronous client but as
-    coroutines (delegating to the ``a``-prefixed methods underneath).
-    """
-
-    def __init__(self, auth_key: str, **kwargs: Any) -> None:
-        self._client = ApiHubClient(auth_key, **kwargs)
-        self.auth_key = self._client.auth_key
-        self.config = {
-            "base_url": self._client.base_url,
-            "timeout": self._client.timeout,
-            "retries": self._client.retries,
-        }
-        self.closed = False
-
-    @classmethod
-    def from_env(cls, name: str = "KMA_APIHUB_AUTH_KEY", **kwargs: Any) -> AsyncApiHubClient:
-        auth_key = first_env_value((name, *APIHUB_ENV_NAMES))
-        return cls(auth_key, **kwargs)
-
-    async def __aenter__(self) -> AsyncApiHubClient:
-        return self
-
-    async def __aexit__(self, *_exc: object) -> None:
-        await self.aclose()
-
-    async def aclose(self) -> None:
-        await self._client.aclose()
-        self._client.close()
-        self.closed = True
-
-    async def request_path(
-        self,
-        path: str,
-        params: Mapping[str, Any] | None = None,
-    ) -> ApiHubResponse:
-        return await self._client.arequest_path(path, params)
-
-    async def request_query_parts(
-        self,
-        path: str,
-        query_parts: Iterable[tuple[str, str]],
-        params: Mapping[str, Any] | None = None,
-    ) -> ApiHubResponse:
-        return await self._client.arequest_query_parts(path, query_parts, params)
-
-    async def open_api(
-        self,
-        service: str,
-        operation: str,
-        params: Mapping[str, Any] | None = None,
-        *,
-        data_type: str = "JSON",
-        page_no: int = 1,
-        num_of_rows: int = 10,
-    ) -> ApiHubResponse:
-        return await self._client.aopen_api(
-            service,
-            operation,
-            params,
-            data_type=data_type,
-            page_no=page_no,
-            num_of_rows=num_of_rows,
-        )
-
-    async def discover_services(
-        self,
-        category_ids: tuple[int, ...] = APIHUB_CATEGORY_IDS,
-    ) -> list[ApiHubService]:
-        return await self._client.adiscover_services(category_ids)
-
-    async def discover_endpoints(
-        self,
-        category_id: int,
-        service_id: int,
-    ) -> list[ApiHubEndpoint]:
-        return await self._client.adiscover_endpoints(category_id, service_id)
-
-    def iter_pages(
-        self,
-        service: str,
-        operation: str,
-        params: Mapping[str, Any] | None = None,
-        *,
-        data_type: str = "JSON",
-        start_page: int = 1,
-        num_of_rows: int = 10,
-        max_pages: int = 100,
-        max_items: int | None = None,
-    ) -> AsyncIterator[Mapping[str, Any]]:
-        return self._client.aiter_pages(
-            service,
-            operation,
-            params,
-            data_type=data_type,
-            start_page=start_page,
-            num_of_rows=num_of_rows,
-            max_pages=max_pages,
-            max_items=max_items,
-        )
+    def _get_session(self) -> Any:
+        self._ensure_open()
+        if self._session is None:
+            self._session = build_async_client()
+        return self._session
 
 
 def parse_apihub_services(html_text: str, category_id: int) -> list[ApiHubService]:

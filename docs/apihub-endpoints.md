@@ -21,24 +21,48 @@
 ## 사용법
 
 ```python
+import asyncio
 from kma import ApiHubGeneratedClient
 
-hub = ApiHubGeneratedClient.from_env()
-response = hub.kma_sfctm2(tm="202605010900", stn="108", help="1")
-rows = response.text_table().rows
+
+async def main() -> None:
+    async with ApiHubGeneratedClient.from_env() as hub:
+        response = (await hub.kma_sfctm2(tm="202605010900", stn="108", help="1"))
+        rows = response.text_table().rows
+
+
+asyncio.run(main())
 ```
 
 홈페이지 예제 값을 그대로 써서 호출하려면 `use_sample=True`를 넘깁니다. 실제 운영 코드에서는 예제 날짜가 오래되었을 수 있으므로 필요한 인자를 명시하는 것을 권장합니다.
 
 ```python
-response = hub.kma_sfctm2(use_sample=True, stn="108")
+from kma import ApiHubGeneratedClient
+import asyncio
+
+
+async def main() -> None:
+    async with ApiHubGeneratedClient.from_env() as hub:
+        response = (await hub.kma_sfctm2(use_sample=True, stn="108"))
+
+
+asyncio.run(main())
 ```
 
 이미지 endpoint는 bytes와 포맷/크기 정보를 함께 얻을 수 있습니다.
 
 ```python
-image = hub.image_endpoint("api_iwa_img_url_api_ret_grid_img", use_sample=True)
-print(image.format, image.width, image.height)
+from kma import ApiHubGeneratedClient
+import asyncio
+
+
+async def main() -> None:
+    async with ApiHubGeneratedClient.from_env() as hub:
+        image = (await hub.image_endpoint("api_iwa_img_url_api_ret_grid_img", use_sample=True))
+        print(image.format, image.width, image.height)
+
+
+asyncio.run(main())
 ```
 
 이름 없는 query string을 쓰는 legacy 그래픽 URL은 `arg1`, `arg2`처럼 순서형 인자로 노출합니다. 예를 들어 `?202305031000&0&...` 형태는 `arg1="202305031000"`, `arg2="0"`로 넘깁니다.

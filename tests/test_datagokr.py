@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-import asyncio
+import inspect
 from datetime import datetime
 from typing import Any, Callable
+
+import pytest
 
 from kma import (
     KMA_DATA_GOKR_DATASETS,
@@ -20,9 +22,10 @@ from kma import (
     next_page_no,
     sanitize_request_params,
 )
-from kma.datagokr import AsyncDataGoKrClient, DataGoKrClient
+from kma.datagokr import DataGoKrClient
 from kma.exceptions import KmaAuthError, KmaParseError, KmaRequestError, KmaServerError
 from kma.metadata import redact_credentials_in_text
+from kma.pagination import PaginationLimitWarning
 from kma.time_utils import KST
 
 
@@ -54,15 +57,13 @@ class XmlErrorResponse:
 
 
 class XmlErrorSession:
-    def get(self, url: str, *, params: dict[str, Any], timeout: float) -> XmlErrorResponse:
+    async def get(self, url: str, *, params: dict[str, Any], timeout: float) -> XmlErrorResponse:
         del url, params, timeout
         return XmlErrorResponse()
 
 
 class AsyncXmlErrorSession:
-    async def get(
-        self, url: str, *, params: dict[str, Any], timeout: float
-    ) -> XmlErrorResponse:
+    async def get(self, url: str, *, params: dict[str, Any], timeout: float) -> XmlErrorResponse:
         del url, params, timeout
         return XmlErrorResponse()
 
@@ -74,15 +75,13 @@ class XmlNoDataResponse(XmlErrorResponse):
 
 
 class XmlNoDataSession(XmlErrorSession):
-    def get(self, url: str, *, params: dict[str, Any], timeout: float) -> XmlNoDataResponse:
+    async def get(self, url: str, *, params: dict[str, Any], timeout: float) -> XmlNoDataResponse:
         del url, params, timeout
         return XmlNoDataResponse()
 
 
 class AsyncXmlNoDataSession(AsyncXmlErrorSession):
-    async def get(
-        self, url: str, *, params: dict[str, Any], timeout: float
-    ) -> XmlNoDataResponse:
+    async def get(self, url: str, *, params: dict[str, Any], timeout: float) -> XmlNoDataResponse:
         del url, params, timeout
         return XmlNoDataResponse()
 
@@ -96,7 +95,9 @@ class ArbitraryXmlSession(XmlErrorSession):
     def __init__(self, code: str) -> None:
         self.code = code
 
-    def get(self, url: str, *, params: dict[str, Any], timeout: float) -> ArbitraryXmlResponse:
+    async def get(
+        self, url: str, *, params: dict[str, Any], timeout: float
+    ) -> ArbitraryXmlResponse:
         del url, params, timeout
         return ArbitraryXmlResponse(self.code)
 
@@ -106,7 +107,7 @@ class FakeSession:
         self.payload = payload
         self.calls: list[dict[str, Any]] = []
 
-    def get(self, url: str, *, params: dict[str, Any], timeout: float) -> FakeResponse:
+    async def get(self, url: str, *, params: dict[str, Any], timeout: float) -> FakeResponse:
         self.calls.append({"url": url, "params": params, "timeout": timeout})
         return FakeResponse(self.payload)
 
@@ -121,9 +122,11 @@ class AsyncFakeSession:
         return FakeResponse(self.payload)
 
 
-def assert_raises(exc_type: type[BaseException], func: Callable[[], object]) -> None:
+async def assert_raises(exc_type: type[BaseException], func: Callable[[], object]) -> None:
     try:
-        func()
+        result = func()
+        if inspect.isawaitable(result):
+            await result
     except exc_type:
         return
     raise AssertionError(f"expected {exc_type.__name__}")
@@ -157,29 +160,31 @@ def _no_data_payload() -> dict[str, Any]:
     }
 
 
-def test_datagokr_generic_request_builds_service_operation_url() -> None:
+async def test_datagokr_generic_request_builds_service_operation_url() -> None:
     session = FakeSession(_payload([{"wfSv": "맑음"}]))
     client = DataGoKrClient("decoded-key", session=session)
 
-    body = client.request(
+    body = await client.request(
         "MidFcstInfoService",
         "getMidFcst",
         {"stnId": "108", "tmFc": "202605010600"},
     )
 
     assert body["items"]["item"][0]["wfSv"] == "맑음"
-    assert session.calls[0]["url"] == "https://apis.data.go.kr/1360000/MidFcstInfoService/getMidFcst"
+    assert (
+        session.calls[0]["url"] == "https://apis.data.go.kr/1360000/MidFcstInfoService/getMidFcst"
+    )
     assert session.calls[0]["params"]["serviceKey"] == "decoded-key"
     assert session.calls[0]["params"]["dataType"] == "JSON"
     assert session.calls[0]["params"]["pageNo"] == 1
     assert session.calls[0]["params"]["numOfRows"] == 10
 
 
-def test_datagokr_http_200_xml_quota_is_nonretryable() -> None:
+async def test_datagokr_http_200_xml_quota_is_nonretryable() -> None:
     client = DataGoKrClient("decoded-key", session=XmlErrorSession())
 
     try:
-        client.request("MidFcstInfoService", "getMidFcst")
+        (await client.request("MidFcstInfoService", "getMidFcst"))
     except KmaRequestError as error:
         assert error.result_code == "22"
         assert error.failure_kind == "quota"
@@ -188,33 +193,33 @@ def test_datagokr_http_200_xml_quota_is_nonretryable() -> None:
         raise AssertionError("expected KmaRequestError")
 
 
-def test_datagokr_http_200_xml_no_data_is_empty_success() -> None:
+async def test_datagokr_http_200_xml_no_data_is_empty_success() -> None:
     client = DataGoKrClient("decoded-key", session=XmlNoDataSession())
 
-    body = client.request("MidFcstInfoService", "getMidFcst")
+    body = await client.request("MidFcstInfoService", "getMidFcst")
 
     assert body["items"]["item"] == []
     assert body["totalCount"] == 0
 
 
-def test_datagokr_unrelated_xml_never_becomes_empty_or_typed_success() -> None:
+async def test_datagokr_unrelated_xml_never_becomes_empty_or_typed_success() -> None:
     for code in ("03", "22"):
         client = DataGoKrClient("decoded-key", session=ArbitraryXmlSession(code))
 
         try:
-            client.request("MidFcstInfoService", "getMidFcst")
+            (await client.request("MidFcstInfoService", "getMidFcst"))
         except KmaParseError:
             pass
         else:  # pragma: no cover - 실패 메시지 명확화
             raise AssertionError(f"unrelated XML code {code} must remain a parse error")
 
 
-def test_datagokr_async_request_builds_service_operation_url() -> None:
+async def test_datagokr_async_request_builds_service_operation_url() -> None:
     async def run() -> None:
         session = AsyncFakeSession(_payload([{"wfSv": "맑음"}]))
-        client = DataGoKrClient("decoded-key", async_session=session)
+        client = DataGoKrClient("decoded-key", session=session)
 
-        body = await client.arequest(
+        body = await client.request(
             "MidFcstInfoService",
             "getMidFcst",
             {"stnId": "108", "tmFc": "202605010600"},
@@ -226,15 +231,15 @@ def test_datagokr_async_request_builds_service_operation_url() -> None:
         )
         assert session.calls[0]["params"]["serviceKey"] == "decoded-key"
 
-    asyncio.run(run())
+    await run()
 
 
-def test_datagokr_async_http_200_xml_quota_is_nonretryable() -> None:
+async def test_datagokr_async_http_200_xml_quota_is_nonretryable() -> None:
     async def run() -> None:
-        client = DataGoKrClient("decoded-key", async_session=AsyncXmlErrorSession())
+        client = DataGoKrClient("decoded-key", session=AsyncXmlErrorSession())
 
         try:
-            await client.arequest("MidFcstInfoService", "getMidFcst")
+            await client.request("MidFcstInfoService", "getMidFcst")
         except KmaRequestError as error:
             assert error.result_code == "22"
             assert error.failure_kind == "quota"
@@ -242,27 +247,27 @@ def test_datagokr_async_http_200_xml_quota_is_nonretryable() -> None:
         else:  # pragma: no cover - 실패 메시지 명확화
             raise AssertionError("expected KmaRequestError")
 
-    asyncio.run(run())
+    await run()
 
 
-def test_datagokr_async_http_200_xml_no_data_is_empty_success() -> None:
+async def test_datagokr_async_http_200_xml_no_data_is_empty_success() -> None:
     async def run() -> None:
-        client = DataGoKrClient("decoded-key", async_session=AsyncXmlNoDataSession())
+        client = DataGoKrClient("decoded-key", session=AsyncXmlNoDataSession())
 
-        body = await client.arequest("MidFcstInfoService", "getMidFcst")
+        body = await client.request("MidFcstInfoService", "getMidFcst")
 
         assert body["items"]["item"] == []
         assert body["totalCount"] == 0
 
-    asyncio.run(run())
+    await run()
 
 
-def test_datagokr_aio_returns_async_facade() -> None:
+async def test_datagokr_aio_returns_async_facade() -> None:
     async def run() -> None:
         session = AsyncFakeSession(_payload([{"wfSv": "맑음"}]))
-        client = DataGoKrClient.aio("decoded-key", async_session=session)
+        client = DataGoKrClient("decoded-key", session=session)
 
-        assert isinstance(client, AsyncDataGoKrClient)
+        assert isinstance(client, DataGoKrClient)
         assert client.service_key == "decoded-key"
 
         async with client:
@@ -278,23 +283,23 @@ def test_datagokr_aio_returns_async_facade() -> None:
         assert session.calls[0]["params"]["serviceKey"] == "decoded-key"
         assert client.closed is True
 
-    asyncio.run(run())
+    await run()
 
 
-def test_datagokr_service_key_strips_copied_whitespace() -> None:
+async def test_datagokr_service_key_strips_copied_whitespace() -> None:
     session = FakeSession(_payload([{"wfSv": "맑음"}]))
     client = DataGoKrClient(" decoded \n key\t", session=session)
 
-    client.request("MidFcstInfoService", "getMidFcst")
+    (await client.request("MidFcstInfoService", "getMidFcst"))
 
     assert session.calls[0]["params"]["serviceKey"] == "decodedkey"
 
 
-def test_datagokr_request_with_metadata_sanitizes_service_key() -> None:
+async def test_datagokr_request_with_metadata_sanitizes_service_key() -> None:
     session = FakeSession(_payload([{"wfSv": "맑음"}]))
     client = DataGoKrClient("decoded-key", session=session)
 
-    body, metadata = client.request_with_metadata(
+    body, metadata = await client.request_with_metadata(
         "MidFcstInfoService",
         "getMidFcst",
         {"stnId": "108", "tmFc": "202605010600"},
@@ -307,20 +312,20 @@ def test_datagokr_request_with_metadata_sanitizes_service_key() -> None:
     assert "serviceKey" not in metadata.request_params
 
 
-def test_datagokr_service_key_parameter_name_is_configurable() -> None:
+async def test_datagokr_service_key_parameter_name_is_configurable() -> None:
     session = FakeSession(_payload([{"wfSv": "맑음"}]))
     client = DataGoKrClient("decoded-key", service_key_param="ServiceKey", session=session)
 
-    client.request("MidFcstInfoService", "getMidFcst")
+    (await client.request("MidFcstInfoService", "getMidFcst"))
 
     assert session.calls[0]["params"]["ServiceKey"] == "decoded-key"
     assert "serviceKey" not in session.calls[0]["params"]
 
 
-def test_datagokr_items_wraps_single_item_dict() -> None:
+async def test_datagokr_items_wraps_single_item_dict() -> None:
     client = DataGoKrClient("decoded-key", session=FakeSession(_payload({"wfSv": "맑음"})))
 
-    assert client.items("MidFcstInfoService", "getMidFcst")[0] == {"wfSv": "맑음"}
+    assert (await client.items("MidFcstInfoService", "getMidFcst"))[0] == {"wfSv": "맑음"}
 
 
 def test_datagokr_dataset_catalog_is_kma_only() -> None:
@@ -333,8 +338,7 @@ def test_datagokr_dataset_catalog_is_kma_only() -> None:
     assert sum(1 for dataset in datasets if dataset.gateway == "datagokr") == 38
     assert sum(1 for dataset in datasets if dataset.gateway == "apihub") == 48
     assert (
-        sum(len(dataset.operations) for dataset in datasets if dataset.gateway == "datagokr")
-        == 160
+        sum(len(dataset.operations) for dataset in datasets if dataset.gateway == "datagokr") == 160
     )
     assert all(dataset.title.startswith("\uae30\uc0c1\uccad") for dataset in datasets)
     assert client.dataset("15084084").operations == (
@@ -435,11 +439,11 @@ def test_env_loader_supports_source_specific_keys_and_local_dotenv(
     assert DataGoKrClient.from_env(session=FakeSession(_payload([]))).service_key == "datagokrkey"
 
 
-def test_datagokr_dataset_catalog_request_by_id() -> None:
+async def test_datagokr_dataset_catalog_request_by_id() -> None:
     session = FakeSession(_payload({"stnId": "108", "tm": "2026-05-01"}))
     client = DataGoKrClient("decoded-key", session=session)
 
-    rows = client.dataset_items(
+    rows = await client.dataset_items(
         "15059093",
         {
             "startDt": "20260501",
@@ -458,13 +462,13 @@ def test_datagokr_dataset_catalog_request_by_id() -> None:
     assert rows[0].raw["stnId"] == "108"
 
 
-def test_datagokr_dataset_catalog_multi_operation_requires_selection() -> None:
+async def test_datagokr_dataset_catalog_multi_operation_requires_selection() -> None:
     session = FakeSession(_payload({"beachNum": "1", "tm": "202205011600", "wh": "0.7"}))
     client = DataGoKrClient("decoded-key", session=session)
 
-    assert_raises(ValueError, lambda: client.dataset_items("15102239", {"beach_num": "1"}))
+    (await assert_raises(ValueError, lambda: client.dataset_items("15102239", {"beach_num": "1"})))
 
-    rows = client.dataset_items(
+    rows = await client.dataset_items(
         "15102239",
         {"beach_num": "1", "searchTime": "202205011600"},
         operation="getWhBuoyBeach",
@@ -477,15 +481,15 @@ def test_datagokr_dataset_catalog_multi_operation_requires_selection() -> None:
     assert rows[0].operation == "getWhBuoyBeach"
 
 
-def test_datagokr_dataset_catalog_rejects_api_hub_linked_entries() -> None:
+async def test_datagokr_dataset_catalog_rejects_api_hub_linked_entries() -> None:
     client = DataGoKrClient("decoded-key", session=FakeSession(_payload([])))
 
     assert client.dataset("15139470").gateway == "apihub"
-    assert_raises(ValueError, lambda: client.dataset_items("15139470"))
-    assert_raises(ValueError, lambda: client.dataset("99999999"))
+    (await assert_raises(ValueError, lambda: client.dataset_items("15139470")))
+    (await assert_raises(ValueError, lambda: client.dataset("99999999")))
 
 
-def test_datagokr_pagination_helpers_and_iter_pages_guard() -> None:
+async def test_datagokr_pagination_helpers_and_iter_pages_guard() -> None:
     first = _paged_payload([{"id": 1}], page_no=1, total_count=3)
     second = _paged_payload([{"id": 2}], page_no=2, total_count=3)
     third = _paged_payload([{"id": 3}], page_no=3, total_count=3)
@@ -498,12 +502,10 @@ def test_datagokr_pagination_helpers_and_iter_pages_guard() -> None:
 
     session.payload = first
     pages = []
-    for index, body in enumerate(
-        client.iter_pages("S", "O", num_of_rows=1, max_pages=2),
-        start=1,
-    ):
-        pages.append(body)
-        session.payload = second if index == 1 else third
+    with pytest.warns(PaginationLimitWarning):
+        async for body in client.iter_pages("S", "O", num_of_rows=1, max_pages=2):
+            pages.append(body)
+            session.payload = second if len(pages) == 1 else third
 
     assert [page["pageNo"] for page in pages] == [1, 2]
 
@@ -541,7 +543,7 @@ def test_sanitized_params_and_cache_key_ignore_credentials() -> None:
     assert left != changed_grid
 
 
-def test_mid_forecast_helpers_do_not_guess_reg_id_mapping() -> None:
+async def test_mid_forecast_helpers_do_not_guess_reg_id_mapping() -> None:
     session = FakeSession(
         _payload(
             {
@@ -553,7 +555,7 @@ def test_mid_forecast_helpers_do_not_guess_reg_id_mapping() -> None:
     )
     client = DataGoKrClient("decoded-key", session=session)
 
-    rows = client.mid_land_forecast(reg_id="11B00000", tm_fc="202605010600")
+    rows = await client.mid_land_forecast(reg_id="11B00000", tm_fc="202605010600")
 
     assert rows[0].operation == "getMidLandFcst"
     assert rows[0].reg_id == "11B00000"
@@ -564,7 +566,7 @@ def test_mid_forecast_helpers_do_not_guess_reg_id_mapping() -> None:
     assert "ny" not in rows[0].metadata.request_params
 
 
-def test_mid_forecast_helpers_can_select_latest_tm_fc() -> None:
+async def test_mid_forecast_helpers_can_select_latest_tm_fc() -> None:
     session = FakeSession(
         _payload(
             {
@@ -576,20 +578,22 @@ def test_mid_forecast_helpers_can_select_latest_tm_fc() -> None:
     )
     client = DataGoKrClient("decoded-key", session=session)
 
-    rows = client.mid_land_forecast(
+    rows = await client.mid_land_forecast(
         reg_id="11B00000",
         when=datetime(2026, 5, 1, 6, 5, tzinfo=KST),
     )
 
     assert session.calls[0]["params"]["tmFc"] == "202604301800"
     assert rows[0].tm_fc == "202604301800"
-    assert_raises(
-        ValueError,
-        lambda: client.mid_forecast(stn_id=108, tm_fc="202605010600", when=datetime.now(KST)),
+    (
+        await assert_raises(
+            ValueError,
+            lambda: client.mid_forecast(stn_id=108, tm_fc="202605010600", when=datetime.now(KST)),
+        )
     )
 
 
-def test_datagokr_mid_sea_forecast_helper() -> None:
+async def test_datagokr_mid_sea_forecast_helper() -> None:
     session = FakeSession(
         _payload(
             {
@@ -601,14 +605,17 @@ def test_datagokr_mid_sea_forecast_helper() -> None:
     )
     client = DataGoKrClient("decoded-key", session=session)
 
-    rows = client.mid_sea_forecast(reg_id="12A20000", tm_fc="202605010600")
+    rows = await client.mid_sea_forecast(reg_id="12A20000", tm_fc="202605010600")
 
     assert rows[0].operation == "getMidSeaFcst"
     assert rows[0].reg_id == "12A20000"
-    assert session.calls[0]["url"] == "https://apis.data.go.kr/1360000/MidFcstInfoService/getMidSeaFcst"
+    assert (
+        session.calls[0]["url"]
+        == "https://apis.data.go.kr/1360000/MidFcstInfoService/getMidSeaFcst"
+    )
 
 
-def test_mid_forecast_tm_fc_falls_back_to_request_value_when_row_omits_it() -> None:
+async def test_mid_forecast_tm_fc_falls_back_to_request_value_when_row_omits_it() -> None:
     # 실서버 MidFcstInfoService 응답 row는 요청의 tmFc를 에코하지 않는다 (#20).
     # 응답에 tmFc가 없으면 요청에 실제로 사용한 tmFc로 폴백해야 한다.
     calls: list[tuple[Callable[[DataGoKrClient], Any], str, dict[str, Any]]] = [
@@ -637,7 +644,7 @@ def test_mid_forecast_tm_fc_falls_back_to_request_value_when_row_omits_it() -> N
         session = FakeSession(_payload(dict(row)))
         client = DataGoKrClient("decoded-key", session=session)
 
-        rows = call(client)
+        rows = await call(client)
 
         assert session.calls[0]["params"]["tmFc"] == "202606120600", operation
         assert rows[0].operation == operation
@@ -646,7 +653,7 @@ def test_mid_forecast_tm_fc_falls_back_to_request_value_when_row_omits_it() -> N
         assert "tmFc" not in rows[0].raw, operation
 
 
-def test_mid_forecast_tm_fc_prefers_response_row_value_over_request() -> None:
+async def test_mid_forecast_tm_fc_prefers_response_row_value_over_request() -> None:
     session = FakeSession(
         _payload(
             {
@@ -658,13 +665,13 @@ def test_mid_forecast_tm_fc_prefers_response_row_value_over_request() -> None:
     )
     client = DataGoKrClient("decoded-key", session=session)
 
-    rows = client.mid_land_forecast(reg_id="11B00000", tm_fc="202606120600")
+    rows = await client.mid_land_forecast(reg_id="11B00000", tm_fc="202606120600")
 
     assert session.calls[0]["params"]["tmFc"] == "202606120600"
     assert rows[0].tm_fc == "202606111800"
 
 
-def test_mid_forecast_tm_fc_fallback_handles_empty_row_value() -> None:
+async def test_mid_forecast_tm_fc_fallback_handles_empty_row_value() -> None:
     session = FakeSession(
         _payload(
             {
@@ -676,17 +683,17 @@ def test_mid_forecast_tm_fc_fallback_handles_empty_row_value() -> None:
     )
     client = DataGoKrClient("decoded-key", session=session)
 
-    rows = client.mid_land_forecast(reg_id="11B00000", tm_fc="202606120600")
+    rows = await client.mid_land_forecast(reg_id="11B00000", tm_fc="202606120600")
 
     assert rows[0].tm_fc == "202606120600"
 
 
-def test_mid_forecast_tm_fc_fallback_matches_auto_resolved_request_value() -> None:
+async def test_mid_forecast_tm_fc_fallback_matches_auto_resolved_request_value() -> None:
     # when= 자동 해석(tm_fc 생략) 경로에서도 요청 param과 item 폴백이 같은 값을 본다.
     session = FakeSession(_payload({"regId": "11B00000", "wf3Am": "맑음"}))
     client = DataGoKrClient("decoded-key", session=session)
 
-    rows = client.mid_land_forecast(
+    rows = await client.mid_land_forecast(
         reg_id="11B00000",
         when=datetime(2026, 6, 12, 6, 5, tzinfo=KST),
     )
@@ -695,7 +702,7 @@ def test_mid_forecast_tm_fc_fallback_matches_auto_resolved_request_value() -> No
     assert rows[0].tm_fc == "202606111800"
 
 
-def test_datagokr_asos_helpers_build_requests() -> None:
+async def test_datagokr_asos_helpers_build_requests() -> None:
     daily_session = FakeSession(
         _payload(
             {
@@ -728,12 +735,12 @@ def test_datagokr_asos_helpers_build_requests() -> None:
         )
     )
 
-    daily = DataGoKrClient("decoded-key", session=daily_session).asos_daily_weather(
+    daily = await DataGoKrClient("decoded-key", session=daily_session).asos_daily_weather(
         start_dt="20260501",
         end_dt="20260502",
         stn_ids=108,
     )
-    hourly = DataGoKrClient("decoded-key", session=hourly_session).asos_hourly_weather(
+    hourly = await DataGoKrClient("decoded-key", session=hourly_session).asos_hourly_weather(
         start_dt="20260501",
         start_hh=3,
         end_dt="20260501",
@@ -770,7 +777,7 @@ def test_datagokr_asos_helpers_build_requests() -> None:
     assert hourly[0].sea_level_pressure == 1013.1
 
 
-def test_datagokr_raw_weather_warning_and_message_helpers() -> None:
+async def test_datagokr_raw_weather_warning_and_message_helpers() -> None:
     warning_session = FakeSession(
         _payload(
             {
@@ -783,12 +790,12 @@ def test_datagokr_raw_weather_warning_and_message_helpers() -> None:
     )
     message_session = FakeSession(_payload({"wfSv1": "summary"}))
 
-    warning = DataGoKrClient("decoded-key", session=warning_session).weather_warning_list(
+    warning = await DataGoKrClient("decoded-key", session=warning_session).weather_warning_list(
         stn_id=108,
         from_tm_fc="20260501",
         to_tm_fc="20260502",
     )
-    land = DataGoKrClient("decoded-key", session=message_session).land_forecast_message(
+    land = await DataGoKrClient("decoded-key", session=message_session).land_forecast_message(
         reg_id="11B10101"
     )
 
@@ -810,7 +817,7 @@ def test_datagokr_raw_weather_warning_and_message_helpers() -> None:
     assert land[0].operation == "getLandFcst"
 
 
-def test_datagokr_beach_forecast_helper_builds_request_and_models_rows() -> None:
+async def test_datagokr_beach_forecast_helper_builds_request_and_models_rows() -> None:
     session = FakeSession(
         _payload(
             {
@@ -828,7 +835,7 @@ def test_datagokr_beach_forecast_helper_builds_request_and_models_rows() -> None
     )
     client = DataGoKrClient("decoded-key", session=session)
 
-    rows = client.beach_ultra_short_forecast(
+    rows = await client.beach_ultra_short_forecast(
         beach_num=1,
         base_date="20220622",
         base_time="1230",
@@ -853,7 +860,7 @@ def test_datagokr_beach_forecast_helper_builds_request_and_models_rows() -> None
     assert "serviceKey" not in rows[0].metadata.request_params
 
 
-def test_datagokr_beach_forecast_can_select_latest_base_from_when() -> None:
+async def test_datagokr_beach_forecast_can_select_latest_base_from_when() -> None:
     session = FakeSession(
         _payload(
             {
@@ -871,17 +878,19 @@ def test_datagokr_beach_forecast_can_select_latest_base_from_when() -> None:
     )
     client = DataGoKrClient("decoded-key", session=session)
 
-    client.beach_forecast(beach_num="1", when=datetime(2026, 5, 7, 2, 5, tzinfo=KST))
+    (await client.beach_forecast(beach_num="1", when=datetime(2026, 5, 7, 2, 5, tzinfo=KST)))
 
     assert session.calls[0]["params"]["base_date"] == "20260506"
     assert session.calls[0]["params"]["base_time"] == "2300"
-    assert_raises(
-        ValueError,
-        lambda: client.beach_forecast(beach_num="1", base_date="20260507"),
+    (
+        await assert_raises(
+            ValueError,
+            lambda: client.beach_forecast(beach_num="1", base_date="20260507"),
+        )
     )
 
 
-def test_datagokr_beach_observation_helpers_parse_rows() -> None:
+async def test_datagokr_beach_observation_helpers_parse_rows() -> None:
     wave_client = DataGoKrClient(
         "decoded-key",
         session=FakeSession(_payload({"beachNum": "1", "tm": "202205011600", "wh": "0.7"})),
@@ -891,8 +900,8 @@ def test_datagokr_beach_observation_helpers_parse_rows() -> None:
         session=FakeSession(_payload({"beachNum": "1", "tm": "202205011600", "tw": "18.4"})),
     )
 
-    wave = wave_client.beach_wave_height(beach_num="1", search_time="202205011600")
-    water = water_client.beach_water_temperature(
+    wave = await wave_client.beach_wave_height(beach_num="1", search_time="202205011600")
+    water = await water_client.beach_water_temperature(
         beach_num=1,
         search_time=datetime(2022, 5, 1, 16, 0, tzinfo=KST),
     )
@@ -902,7 +911,7 @@ def test_datagokr_beach_observation_helpers_parse_rows() -> None:
     assert water[0].water_temperature == 18.4
 
 
-def test_datagokr_beach_tide_and_sun_helpers_preserve_upstream_parameters() -> None:
+async def test_datagokr_beach_tide_and_sun_helpers_preserve_upstream_parameters() -> None:
     tide_client = DataGoKrClient(
         "decoded-key",
         session=FakeSession(
@@ -930,8 +939,8 @@ def test_datagokr_beach_tide_and_sun_helpers_preserve_upstream_parameters() -> N
     )
     sun_client = DataGoKrClient("decoded-key", session=sun_session)
 
-    tide = tide_client.beach_tide_info(beach_num=1, base_date="20220620")
-    sun = sun_client.beach_sun_info(beach_num="1", base_date="20220501")
+    tide = await tide_client.beach_tide_info(beach_num=1, base_date="20220620")
+    sun = await sun_client.beach_sun_info(beach_num="1", base_date="20220501")
 
     assert tide[0].station_name == "station"
     assert tide[0].tide_level == 35.0
@@ -941,21 +950,21 @@ def test_datagokr_beach_tide_and_sun_helpers_preserve_upstream_parameters() -> N
     assert sun[0].metadata.base_date == "20220501"
 
 
-def test_datagokr_tour_living_and_earthquake_helpers() -> None:
+async def test_datagokr_tour_living_and_earthquake_helpers() -> None:
     tour_session = FakeSession(_payload({"courseId": "1"}))
     living_session = FakeSession(_payload({"areaNo": "1100000000"}))
     quake_session = FakeSession(_payload({"tmFc": "20260501"}))
 
-    tour = DataGoKrClient("decoded-key", session=tour_session).tour_village_forecast(
+    tour = await DataGoKrClient("decoded-key", session=tour_session).tour_village_forecast(
         course_id=1,
         current_date="20260501",
         hour=9,
     )
-    uv = DataGoKrClient("decoded-key", session=living_session).uv_index(
+    uv = await DataGoKrClient("decoded-key", session=living_session).uv_index(
         area_no="1100000000",
         time="2026050106",
     )
-    quake = DataGoKrClient("decoded-key", session=quake_session).earthquake_message_list(
+    quake = await DataGoKrClient("decoded-key", session=quake_session).earthquake_message_list(
         from_tm_fc="20260501",
         to_tm_fc="20260502",
     )
@@ -977,7 +986,7 @@ def test_datagokr_tour_living_and_earthquake_helpers() -> None:
     assert quake[0].operation == "getEqkMsgList"
 
 
-def test_datagokr_result_code_mapping_and_shape_errors() -> None:
+async def test_datagokr_result_code_mapping_and_shape_errors() -> None:
     auth_client = DataGoKrClient(
         "bad-key",
         session=FakeSession(
@@ -1002,15 +1011,15 @@ def test_datagokr_result_code_mapping_and_shape_errors() -> None:
     )
     parse_client = DataGoKrClient("decoded-key", session=FakeSession({"bad": {}}))
 
-    assert_raises(KmaAuthError, lambda: auth_client.request("S", "O"))
-    assert_raises(KmaServerError, lambda: server_client.request("S", "O"))
-    assert_raises(KmaParseError, lambda: parse_client.request("S", "O"))
+    (await assert_raises(KmaAuthError, lambda: auth_client.request("S", "O")))
+    (await assert_raises(KmaServerError, lambda: server_client.request("S", "O")))
+    (await assert_raises(KmaParseError, lambda: parse_client.request("S", "O")))
 
 
-def test_datagokr_no_data_result_code_normalizes_to_empty_body() -> None:
+async def test_datagokr_no_data_result_code_normalizes_to_empty_body() -> None:
     client = DataGoKrClient("decoded-key", session=FakeSession(_no_data_payload()))
 
-    body = client.request("MidFcstInfoService", "getMidFcst")
+    body = await client.request("MidFcstInfoService", "getMidFcst")
 
     assert body["items"] == {"item": []}
     assert body["totalCount"] == 0
@@ -1018,11 +1027,11 @@ def test_datagokr_no_data_result_code_normalizes_to_empty_body() -> None:
     assert has_next_page(body) is False
 
 
-def test_datagokr_no_data_weather_warning_list_returns_empty_list() -> None:
+async def test_datagokr_no_data_weather_warning_list_returns_empty_list() -> None:
     session = FakeSession(_no_data_payload())
     client = DataGoKrClient("decoded-key", session=session)
 
-    warnings = client.weather_warning_list(
+    warnings = await client.weather_warning_list(
         stn_id=108,
         from_tm_fc="20260501",
         to_tm_fc="20260504",
@@ -1034,37 +1043,37 @@ def test_datagokr_no_data_weather_warning_list_returns_empty_list() -> None:
     )
 
 
-def test_datagokr_no_data_mid_forecast_returns_empty_list() -> None:
+async def test_datagokr_no_data_mid_forecast_returns_empty_list() -> None:
     client = DataGoKrClient("decoded-key", session=FakeSession(_no_data_payload()))
 
-    assert client.mid_forecast(stn_id=108, tm_fc="202605010600") == []
+    assert (await client.mid_forecast(stn_id=108, tm_fc="202605010600")) == []
 
 
-def test_datagokr_no_data_iter_pages_stops_after_first_page() -> None:
+async def test_datagokr_no_data_iter_pages_stops_after_first_page() -> None:
     session = FakeSession(_no_data_payload())
     client = DataGoKrClient("decoded-key", session=session)
 
-    pages = list(client.iter_pages("WthrWrnInfoService", "getWthrWrnList"))
+    pages = [item async for item in client.iter_pages("WthrWrnInfoService", "getWthrWrnList")]
 
     assert len(pages) == 1
     assert pages[0]["items"] == {"item": []}
     assert len(session.calls) == 1
 
 
-def test_datagokr_no_data_without_body_returns_empty_items() -> None:
+async def test_datagokr_no_data_without_body_returns_empty_items() -> None:
     payload = {"response": {"header": {"resultCode": "03", "resultMsg": "NO_DATA"}}}
     client = DataGoKrClient("decoded-key", session=FakeSession(payload))
 
-    assert client.items("WthrWrnInfoService", "getWthrWrnList") == []
+    assert (await client.items("WthrWrnInfoService", "getWthrWrnList")) == []
 
 
-def test_datagokr_no_data_async_items_returns_empty_list() -> None:
+async def test_datagokr_no_data_async_items_returns_empty_list() -> None:
     async def run() -> None:
         session = AsyncFakeSession(_no_data_payload())
-        client = DataGoKrClient("decoded-key", async_session=session)
+        client = DataGoKrClient("decoded-key", session=session)
 
-        items = await client.aitems("WthrWrnInfoService", "getWthrWrnList")
+        items = await client.items("WthrWrnInfoService", "getWthrWrnList")
 
         assert items == []
 
-    asyncio.run(run())
+    await run()
