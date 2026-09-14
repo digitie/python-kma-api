@@ -1,5 +1,7 @@
 # python-kma-api
 
+네트워크 API는 비동기 전용이며 기본 5 TPS다. 호출 전환과 공유 버킷 설정은 [비동기 API와 공통 TPS](docs/async-tps.md)를 참고한다.
+
 ![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![GPL-3.0-or-later 라이선스](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)
 ![Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)
@@ -44,7 +46,7 @@ Korea Meteorological Administration(KMA, 기상청) 공공데이터포털과 API
 ## 핵심 특징
 
 - **공식 단기예보 3종 우선 지원**: `getUltraSrtNcst`, `getUltraSrtFcst`, `getVilageFcst`를 `KmaClient`에서 호출합니다.
-- **httpx 기반 sync/async 클라이언트**: 동기 호출은 `KmaClient`, 비동기 호출은 `async with KmaClient.aio(...)` 형태를 사용하며, 예보 API는 `client.forecast.now()`처럼 service facade 아래에 모았습니다.
+- **httpx 비동기 전용 클라이언트**: `async with KmaClient(...)` 안에서 `await client.forecast.now()`처럼 호출합니다.
 - **data.go.kr 범용 호출, 기상청 카탈로그, 주요 helper 지원**: `DataGoKrClient`로 `MidFcstInfoService`, `AsosDalyInfoService`, `WthrWrnInfoService` 같은 KMA REST 서비스를 호출하고, 공공데이터포털 `기상청` 검색 전체 페이지의 KMA 항목 86개와 gateway operation 160개를 카탈로그로 조회합니다.
 - **APIHub 범용 호출과 함수형 래퍼 지원**: `ApiHubClient`로 임의 path를 호출하고, `ApiHubGeneratedClient`로 공식 목록의 470개 endpoint를 함수 이름으로 호출합니다.
 - **API 카탈로그와 디버그 UI 보조**: `api_catalog()`로 데이터셋명, gateway, operation, 인증키 링크가 있는 선택 목록을 얻고 Streamlit 디버그 화면에서 확인할 수 있습니다.
@@ -69,7 +71,7 @@ Korea Meteorological Administration(KMA, 기상청) 공공데이터포털과 API
 
 | 분류 | 권장 API |
 |---|---|
-| typed client | `KmaClient`, `AsyncKmaClient`, `DataGoKrClient`, `ApiHubClient` |
+| typed client | `KmaClient`, `DataGoKrClient`, `ApiHubClient` |
 | API 카탈로그 | `KMA_DATA_GOKR_DATASETS`, `DataGoKrDatasetSpec`, `ApiCatalogEntry`, `api_catalog` |
 | 인증키 로딩 | `api_key_for_gateway`, `env_names_for_gateway`, `load_local_env` |
 | 위치 값 객체 | `LatLon`, `GridPoint`, `normalize_location` |
@@ -131,25 +133,37 @@ pip install -e ".[dev]"
 ### 3단계: 사용
 
 ```python
+import asyncio
 from kma import KmaClient
 
-with KmaClient.from_env() as kma:
-    snap = kma.forecast.now(lat=37.5665, lon=126.9780)  # 서울시청
-    print(snap.temperature, snap.precipitation_label)
 
-    items = kma.forecast.vilage(lat=37.5665, lon=126.9780)
-    for item in items[:5]:
-        print(item.forecast_at, item.category, item.value, item.label)
+async def main() -> None:
+    async with KmaClient.from_env() as kma:
+        snap = (await kma.forecast.now(lat=37.5665, lon=126.9780))  # 서울시청
+        print(snap.temperature, snap.precipitation_label)
+
+        items = (await kma.forecast.vilage(lat=37.5665, lon=126.9780))
+        for item in items[:5]:
+            print(item.forecast_at, item.category, item.value, item.label)
+
+
+asyncio.run(main())
 ```
 
-비동기 코드는 `python-krheritage-api`와 같은 facade 패턴을 따릅니다.
+비동기 클라이언트는 컨텍스트 종료 시 내부 세션을 닫습니다.
 
 ```python
+import asyncio
 from kma import KmaClient
 
-async with KmaClient.aio_from_env() as kma:
-    snap = await kma.forecast.now(nx=60, ny=127)
-    items = await kma.forecast.short(nx=60, ny=127)
+
+async def main() -> None:
+    async with KmaClient.from_env() as kma:
+        snap = await kma.forecast.now(nx=60, ny=127)
+        items = await kma.forecast.short(nx=60, ny=127)
+
+
+asyncio.run(main())
 ```
 
 KMA 예보 응답은 시간대가 아니라 category row 단위로 나뉘어 있으므로, 화면/저장 경계에서는 시간축으로 피벗하면 다루기 쉽습니다.
@@ -165,24 +179,50 @@ print(first.forecast_at, first.value(WeatherCategory.TEMPERATURE), first.label("
 격자 좌표를 이미 알고 있다면 `nx`/`ny`를 직접 사용할 수 있습니다.
 
 ```python
-items = kma.forecast.vilage(nx=60, ny=127)
+from kma import KmaClient
+import asyncio
+
+
+async def main() -> None:
+    async with KmaClient.from_env() as kma:
+        items = (await kma.forecast.vilage(nx=60, ny=127))
+
+
+asyncio.run(main())
 ```
 
 외부 프로그램에서는 위치를 명시적인 값 객체로 넘기는 방식을 권장합니다.
 
 ```python
+from kma import KmaClient
+import asyncio
 from kma import GridPoint, LatLon
 
-snap = kma.forecast.now(location=LatLon(37.5665, 126.9780))
-items = kma.forecast.vilage(location=GridPoint(60, 127))
-short = kma.forecast.short(location={"latitude": 37.5665, "longitude": 126.9780})
+
+async def main() -> None:
+    async with KmaClient.from_env() as kma:
+        snap = (await kma.forecast.now(location=LatLon(37.5665, 126.9780)))
+        items = (await kma.forecast.vilage(location=GridPoint(60, 127)))
+        short = (await kma.forecast.short(location={"latitude": 37.5665, "longitude": 126.9780}))
+
+
+asyncio.run(main())
 ```
 
 dict 기반 입력도 지원합니다. API 서버나 설정 파일에서 받은 값을 그대로 연결할 때 유용합니다.
 
 ```python
-kma.forecast.now(location={"latitude": 37.5665, "longitude": 126.9780})
-kma.forecast.now(location={"nx": 60, "ny": 127})
+from kma import KmaClient
+import asyncio
+
+
+async def main() -> None:
+    async with KmaClient.from_env() as kma:
+        (await kma.forecast.now(location={"latitude": 37.5665, "longitude": 126.9780}))
+        (await kma.forecast.now(location={"nx": 60, "ny": 127}))
+
+
+asyncio.run(main())
 ```
 
 좌표 변환만 사용할 수도 있습니다. 기존 tuple 기반 API는 하위 호환용으로 유지합니다.
@@ -235,14 +275,20 @@ APIHub 공식 목록 기반 함수형 래퍼는 470개이며, 포맷정보/예�
 `data.go.kr`의 다른 KMA 서비스는 `DataGoKrClient`를 사용합니다.
 
 ```python
+import asyncio
 from kma import DataGoKrClient
 
-client = DataGoKrClient.from_env()
-items = client.items(
-    "MidFcstInfoService",
-    "getMidFcst",
-    {"stnId": "108", "tmFc": "202605010600"},
-)
+
+async def main() -> None:
+    async with DataGoKrClient.from_env() as client:
+        items = (await client.items(
+            "MidFcstInfoService",
+            "getMidFcst",
+            {"stnId": "108", "tmFc": "202605010600"},
+        ))
+
+
+asyncio.run(main())
 ```
 
 data.go.kr 문서가 인증키 파라미터를 `ServiceKey`로 표기한 서비스는 다음처럼 바꿀 수 있습니다.
@@ -254,22 +300,30 @@ client = DataGoKrClient.from_env(service_key_param="ServiceKey")
 공공데이터포털 `기상청` 오픈 API 검색 전체 페이지에서 확인한 KMA 항목은 카탈로그로 확인할 수 있습니다. 제목이 `기상청`으로 시작하지 않는 검색 결과는 포함하지 않습니다. 카탈로그에는 KMA 항목 86개, 기존 data.go.kr `serviceKey` gateway operation 160개, APIHub LINK 항목 48개가 들어 있습니다.
 
 ```python
+from kma import DataGoKrClient
+import asyncio
 from kma import KMA_DATA_GOKR_DATASETS, api_catalog
 
-print(len(KMA_DATA_GOKR_DATASETS))  # 86
-for entry in api_catalog(gateway="datagokr")[:3]:
-    print(entry.dataset_name, entry.operation, entry.service_key_url)
 
-spec = client.dataset("15059093")
-rows = client.dataset_items(
-    "15059093",
-    {
-        "startDt": "20260501",
-        "endDt": "20260502",
-        "dataCd": "ASOS",
-        "dateCd": "DAY",
-    },
-)
+async def main() -> None:
+    async with DataGoKrClient.from_env() as client:
+        print(len(KMA_DATA_GOKR_DATASETS))  # 86
+        for entry in api_catalog(gateway="datagokr")[:3]:
+            print(entry.dataset_name, entry.operation, entry.service_key_url)
+
+        spec = client.dataset("15059093")
+        rows = (await client.dataset_items(
+            "15059093",
+            {
+                "startDt": "20260501",
+                "endDt": "20260502",
+                "dataCd": "ASOS",
+                "dateCd": "DAY",
+            },
+        ))
+
+
+asyncio.run(main())
 ```
 
 여러 operation을 가진 dataset은 `operation=`을 명시합니다. APIHub로 연결된 항목은 `gateway="apihub"`로 표시되며 `ApiHubClient` 또는 `ApiHubGeneratedClient`를 사용합니다.
@@ -279,31 +333,49 @@ rows = client.dataset_items(
 중기예보는 `DataGoKrClient`의 명시적 helper를 사용할 수 있습니다. `reg_id`는 단기예보의 `nx`/`ny`와 다른 KMA 중기예보 권역 코드이며, `kma`는 임의 매핑을 추측하지 않습니다. `tm_fc`를 생략하면 06:00/18:00 발표와 10분 지연을 반영해 최신 조회 가능 `tmFc`를 고릅니다.
 
 ```python
-rows = client.mid_land_forecast(reg_id="11B00000", tm_fc="202605010600")
-latest_rows = client.mid_land_forecast(reg_id="11B00000")
-temps = client.mid_temperature_forecast(reg_id="11B10101", tm_fc="202605010600")
-overview = client.mid_forecast(stn_id="108", tm_fc="202605010600")
-sea = client.mid_sea_forecast(reg_id="12A20000", tm_fc="202605010600")
-asos = client.asos_daily_weather(start_dt="20260501", end_dt="20260502", stn_ids=108)
-warnings = client.weather_warning_list(stn_id=108, from_tm_fc="20260501", to_tm_fc="20260502")
-situation = client.weather_situation(stn_id=108)
-uv = client.uv_index(area_no="1100000000", time="2026050106")
-quake = client.earthquake_message_list(from_tm_fc="20260501", to_tm_fc="20260502")
+from kma import DataGoKrClient
+import asyncio
+
+
+async def main() -> None:
+    async with DataGoKrClient.from_env() as client:
+        rows = (await client.mid_land_forecast(reg_id="11B00000", tm_fc="202605010600"))
+        latest_rows = (await client.mid_land_forecast(reg_id="11B00000"))
+        temps = (await client.mid_temperature_forecast(reg_id="11B10101", tm_fc="202605010600"))
+        overview = (await client.mid_forecast(stn_id="108", tm_fc="202605010600"))
+        sea = (await client.mid_sea_forecast(reg_id="12A20000", tm_fc="202605010600"))
+        asos = (await client.asos_daily_weather(start_dt="20260501", end_dt="20260502", stn_ids=108))
+        warnings = (await client.weather_warning_list(stn_id=108, from_tm_fc="20260501", to_tm_fc="20260502"))
+        situation = (await client.weather_situation(stn_id=108))
+        uv = (await client.uv_index(area_no="1100000000", time="2026050106"))
+        quake = (await client.earthquake_message_list(from_tm_fc="20260501", to_tm_fc="20260502"))
+
+
+asyncio.run(main())
 ```
 
 해수욕장 날씨 조회서비스(`BeachInfoservice`)는 전용 helper가 있습니다.
 
 ```python
-beach_forecast = client.beach_forecast(beach_num=1)
-ultra = client.beach_ultra_short_forecast(
-    beach_num=1,
-    base_date="20220622",
-    base_time="1230",
-)
-waves = client.beach_wave_height(beach_num=1, search_time="202205011600")
-tides = client.beach_tide_info(beach_num=1, base_date="20220620")
-sun = client.beach_sun_info(beach_num=1, base_date="20220501")
-water = client.beach_water_temperature(beach_num=1, search_time="202205011600")
+from kma import DataGoKrClient
+import asyncio
+
+
+async def main() -> None:
+    async with DataGoKrClient.from_env() as client:
+        beach_forecast = (await client.beach_forecast(beach_num=1))
+        ultra = (await client.beach_ultra_short_forecast(
+            beach_num=1,
+            base_date="20220622",
+            base_time="1230",
+        ))
+        waves = (await client.beach_wave_height(beach_num=1, search_time="202205011600"))
+        tides = (await client.beach_tide_info(beach_num=1, base_date="20220620"))
+        sun = (await client.beach_sun_info(beach_num=1, base_date="20220501"))
+        water = (await client.beach_water_temperature(beach_num=1, search_time="202205011600"))
+
+
+asyncio.run(main())
 ```
 
 `beach_forecast()`와 `beach_ultra_short_forecast()`는 `base_date`/`base_time`을 생략하면 KST 기준 최신 발표시각을 자동 선택합니다. `beach_sun_info()`는 공공데이터포털 Swagger의 `Base_date` 파라미터 표기를 그대로 사용합니다.
@@ -311,31 +383,46 @@ water = client.beach_water_temperature(beach_num=1, search_time="202205011600")
 페이지가 있는 data.go.kr 응답은 helper로 순회할 수 있습니다. `max_pages` 또는 `max_items` guard를 항상 둡니다.
 
 ```python
-for body in client.iter_pages(
-    "MidFcstInfoService",
-    "getMidLandFcst",
-    {"regId": "11B00000", "tmFc": "202605010600"},
-    num_of_rows=100,
-    max_pages=10,
-):
-    ...
+from kma import DataGoKrClient
+import asyncio
+
+
+async def main() -> None:
+    async with DataGoKrClient.from_env() as client:
+        async for body in (client.iter_pages(
+            "MidFcstInfoService",
+            "getMidLandFcst",
+            {"regId": "11B00000", "tmFc": "202605010600"},
+            num_of_rows=100,
+            max_pages=10,
+        )):
+            ...
+
+
+asyncio.run(main())
 ```
 
 APIHub는 별도 인증키(`authKey`)를 사용합니다.
 
 ```python
+import asyncio
 from kma import ApiHubClient, ApiHubGeneratedClient
 
-hub = ApiHubClient.from_env()  # KMA_APIHUB_AUTH_KEY 또는 KMA_APIHUB_KEY
-response = hub.request_path(
-    "/api/typ01/url/wrn_reg.php",
-    {"tmfc": "0"},
-)
-print(response.text)
 
-generated = ApiHubGeneratedClient.from_env()
-asos = generated.kma_sfctm2(tm="202605010900", stn="108", help="1")
-rows = asos.text_table().rows
+async def main() -> None:
+    async with ApiHubClient.from_env() as hub:
+        response = (await hub.request_path(
+            "/api/typ01/url/wrn_reg.php",
+            {"tmfc": "0"},
+        ))
+        print(response.text)
+
+        async with ApiHubGeneratedClient.from_env() as generated:
+            asos = (await generated.kma_sfctm2(tm="202605010900", stn="108", help="1"))
+            rows = asos.text_table().rows
+
+
+asyncio.run(main())
 ```
 
 자세한 내용은 [docs/datagokr.md](docs/datagokr.md)와 [docs/apihub.md](docs/apihub.md)를 참고하세요.
@@ -347,22 +434,41 @@ rows = asos.text_table().rows
 사용자에게 반환하는 주요 응답은 Pydantic v2 `BaseModel` 기반의 frozen 모델입니다.
 
 ```python
-snapshot = kma.now(location=LatLon(37.5665, 126.9780))
-payload = snapshot.model_dump(mode="json")
-schema = snapshot.model_json_schema()
+from kma import LatLon
+from kma import KmaClient
+import asyncio
+
+
+async def main() -> None:
+    async with KmaClient.from_env() as kma:
+        snapshot = (await kma.now(location=LatLon(37.5665, 126.9780)))
+        payload = snapshot.model_dump(mode="json")
+        schema = snapshot.model_json_schema()
+
+
+asyncio.run(main())
 ```
 
 `raw`는 provider 원문 row/payload를 보존하고, `metadata`는 저장/캐시/감사 추적에 필요한 provenance를 담습니다. `serviceKey`, `authKey`, `key` 원문은 `metadata.request_params`, 예외 metadata, repr에 남기지 않습니다.
 
 ```python
-snapshot = kma.now(nx=60, ny=127)
+from kma import KmaClient
+import asyncio
 
-raw_for_db = snapshot.model_dump(mode="json")
-serving_payload = {
-    "temperature": raw_for_db["temperature"],
-    "observed_at": raw_for_db["observed_at"],
-    "source": raw_for_db["metadata"],
-}
+
+async def main() -> None:
+    async with KmaClient.from_env() as kma:
+        snapshot = (await kma.now(nx=60, ny=127))
+
+        raw_for_db = snapshot.model_dump(mode="json")
+        serving_payload = {
+            "temperature": raw_for_db["temperature"],
+            "observed_at": raw_for_db["observed_at"],
+            "source": raw_for_db["metadata"],
+        }
+
+
+asyncio.run(main())
 ```
 
 `ResponseMetadata` 주요 필드:
@@ -435,10 +541,18 @@ class ForecastItem(BaseModel):
 ### `ForecastTimepoint`
 
 ```python
+from kma import KmaClient
+import asyncio
 from kma import pivot_forecast_items
 
-points = pivot_forecast_items(kma.forecast(nx=60, ny=127))
-print(points[0].forecast_at, points[0].values["TMP"])
+
+async def main() -> None:
+    async with KmaClient.from_env() as kma:
+        points = pivot_forecast_items((await kma.forecast(nx=60, ny=127)))
+        print(points[0].forecast_at, points[0].values["TMP"])
+
+
+asyncio.run(main())
 ```
 
 `ForecastTimepoint`는 같은 `forecast_at`, `nx`, `ny`를 가진 `ForecastItem`을 하나로 묶고 category code를 `values`의 key로 둡니다. `labels`, `units`, `raw_items`, `metadata`도 함께 보존하므로 프론트엔드나 BFF 계층에서 row를 다시 조립하지 않아도 됩니다.
@@ -446,10 +560,16 @@ print(points[0].forecast_at, points[0].values["TMP"])
 ### `MidForecastItem`
 
 ```python
+import asyncio
 from kma import DataGoKrClient
 
-client = DataGoKrClient.from_env()
-items = client.mid_land_forecast(reg_id="11B00000", tm_fc="202605010600")
+
+async def main() -> None:
+    async with DataGoKrClient.from_env() as client:
+        items = (await client.mid_land_forecast(reg_id="11B00000", tm_fc="202605010600"))
+
+
+asyncio.run(main())
 ```
 
 `MidForecastItem`은 `MidFcstInfoService` row의 `operation`, `tm_fc`, `reg_id`, `stn_id`, `raw`, `metadata`를 담습니다. 중기예보의 `reg_id`는 단기예보 `nx`/`ny`와 다른 식별자이므로, 라이브러리는 좌표나 권역 매핑을 추측하지 않습니다.
@@ -601,10 +721,19 @@ KmaError
 모든 `KmaError` 하위 예외는 선택적 metadata 속성을 가질 수 있습니다.
 
 ```python
-try:
-    kma.now(nx=60, ny=127)
-except KmaError as exc:
-    print(exc.failure_kind, exc.retryable, exc.metadata)
+from kma import KmaClient
+import asyncio
+
+
+async def main() -> None:
+    async with KmaClient.from_env() as kma:
+        try:
+            (await kma.now(nx=60, ny=127))
+        except KmaError as exc:
+            print(exc.failure_kind, exc.retryable, exc.metadata)
+
+
+asyncio.run(main())
 ```
 
 `failure_kind`는 `auth`, `quota`, `rate_limit`, `request`, `server`, `parse`, `network` 중 하나로 채워질 수 있습니다. 기존처럼 `except KmaAuthError`, `except KmaRequestError`로 잡는 코드는 그대로 동작합니다.
@@ -614,17 +743,26 @@ except KmaError as exc:
 ## Pagination과 Cache Key
 
 ```python
+from kma import latest_mid_fcst_time
+from kma import DataGoKrClient
+import asyncio
 from kma import cache_expire_at, has_next_page, make_cache_key, next_page_no
 
-body = client.request("MidFcstInfoService", "getMidLandFcst", {...})
-if has_next_page(body):
-    print(next_page_no(body))
 
-key = make_cache_key(
-    "getVilageFcst",
-    {"base_date": "20260507", "base_time": "0200", "nx": 60, "ny": 127},
-)
-expire_at = cache_expire_at("getVilageFcst", "20260507", "0200")
+async def main() -> None:
+    async with DataGoKrClient.from_env() as client:
+        body = (await client.request("MidFcstInfoService", "getMidLandFcst", {"regId": "11B00000", "tmFc": latest_mid_fcst_time()}))
+        if has_next_page(body):
+            print(next_page_no(body))
+
+        key = make_cache_key(
+            "getVilageFcst",
+            {"base_date": "20260507", "base_time": "0200", "nx": 60, "ny": 127},
+        )
+        expire_at = cache_expire_at("getVilageFcst", "20260507", "0200")
+
+
+asyncio.run(main())
 ```
 
 `make_cache_key()`는 `serviceKey`, `authKey`, `key`를 제거한 sanitized params를 사용합니다. 같은 endpoint, 같은 기준시각, 같은 `nx`/`ny` 조합이면 인증키가 달라도 같은 cache key가 만들어집니다.

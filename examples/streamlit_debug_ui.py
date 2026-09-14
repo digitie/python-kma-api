@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import asyncio
 import json
 import os
 import sys
@@ -199,9 +200,7 @@ def _api_summary_lines(selected: ApiCatalogEntry) -> tuple[str, str]:
         return line1, line2
 
     line1 = f"{selected.dataset_name} — APIHub {selected.service}({selected.endpoint_path}) 호출."
-    line2 = _RESPONSE_KIND_DESCRIPTIONS.get(
-        selected.response_kind, "알 수 없는 형식의 응답입니다."
-    )
+    line2 = _RESPONSE_KIND_DESCRIPTIONS.get(selected.response_kind, "알 수 없는 형식의 응답입니다.")
     return line1, line2
 
 
@@ -233,14 +232,16 @@ def _raw_response_tab(selected: ApiCatalogEntry, api_key: str, *, timeout: float
         st.error("필수 파라미터를 입력하세요: " + ", ".join(missing))
         return
 
-    run = _run_selected_api(selected, api_key, params, request_options, timeout=timeout)
+    run = asyncio.run(
+        _run_selected_api(selected, api_key, params, request_options, timeout=timeout)
+    )
     _store_run(selected, run)
     if run.error:
         st.error(run.error["message"])
     st.json(jsonable(run.response))
 
 
-def _run_selected_api(
+async def _run_selected_api(
     selected: ApiCatalogEntry,
     api_key: str,
     params: dict[str, Any],
@@ -259,18 +260,18 @@ def _run_selected_api(
 
     try:
         if selected.gateway == "datagokr":
-            client = DataGoKrClient(api_key, timeout=timeout, retries=0)
-            return client.debug_fetch(
-                selected.service or "",
-                selected.operation or "",
-                params,
-                page_no=request_options.get("page_no", 1),
-                num_of_rows=request_options.get("num_of_rows", 10),
-                data_type=request_options.get("data_type", "JSON"),
-            )
-        hub_client = ApiHubGeneratedClient(api_key, timeout=timeout, retries=0)
-        spec = hub_client.endpoint(selected.service or "")
-        return hub_client.debug_fetch_endpoint(spec, params)
+            async with DataGoKrClient(api_key, timeout=timeout, retries=0) as client:
+                return await client.debug_fetch(
+                    selected.service or "",
+                    selected.operation or "",
+                    params,
+                    page_no=request_options.get("page_no", 1),
+                    num_of_rows=request_options.get("num_of_rows", 10),
+                    data_type=request_options.get("data_type", "JSON"),
+                )
+        async with ApiHubGeneratedClient(api_key, timeout=timeout, retries=0) as hub_client:
+            spec = hub_client.endpoint(selected.service or "")
+            return await hub_client.debug_fetch_endpoint(spec, params)
     except Exception as exc:  # pragma: no cover - UI 표시
         return DebugRun(
             function=selected.service or selected.label,

@@ -1,5 +1,7 @@
 # AI 에이전트 가이드: python-kma-api (kma)
 
+네트워크 I/O는 비동기 전용이다(ADR-006). `await`/`async for`/`async with`를 사용하며, Async 접두사 별칭·aio 팩터리·동기 네트워크 경로를 추가하지 않는다. JSON/XML `resultCode=03`은 최신 계약에 따라 빈 결과로 정규화한다.
+
 이 라이브러리(`kma`)를 임포트하여 사용하는 외부 기상 정보 서비스 및 소비자 앱(예: TripMate, tour-map, kraddr 등)의 코드를 생성하는 AI 코딩 어시스턴트(Cursor, Copilot, ChatGPT, Claude Code 등)를 위한 컨텍스트 문서입니다.
 
 > **본 저장소(`python-kma-api`) 자체를 수정하려는 에이전트는 다른 문서를 봅니다**:
@@ -26,30 +28,43 @@
 
 ### 2.1. `KmaClient` (단기예보 3종 및 버전)
 
-동기 호출은 `KmaClient.from_env()`, 비동기 호출은 `KmaClient.aio_from_env()` 패턴을 활용합니다.
+`KmaClient.from_env()`로 생성하고 `async with`/`await`로 호출합니다.
 
 ```python
+import asyncio
 from kma import KmaClient, LatLon, GridPoint
 
-# 동기 호출 예시
-with KmaClient.from_env() as kma:
-    # 1. 초단기실황 (현재 날씨 스냅샷)
-    snap = kma.forecast.now(lat=37.5665, lon=126.9780)  # 서울시청
-    print(f"기온: {snap.temperature}°C, 하늘상태: {snap.sky_label}, 강수: {snap.precipitation_label}")
+
+async def main() -> None:
+    # 조회 예시
+    async with KmaClient.from_env() as kma:
+        # 1. 초단기실황 (현재 날씨 스냅샷)
+        snap = (await kma.forecast.now(lat=37.5665, lon=126.9780))  # 서울시청
+        print(f"기온: {snap.temperature}°C, 하늘상태: {snap.sky_label}, 강수: {snap.precipitation_label}")
     
-    # 2. 단기예보 (향후 3일 일기예보 목록)
-    items = kma.forecast.vilage(location=LatLon(37.5665, 126.9780))
-    for item in items[:5]:
-        print(item.forecast_at, item.category, item.value, item.label)
+        # 2. 단기예보 (향후 3일 일기예보 목록)
+        items = (await kma.forecast.vilage(location=LatLon(37.5665, 126.9780)))
+        for item in items[:5]:
+            print(item.forecast_at, item.category, item.value, item.label)
+
+
+asyncio.run(main())
 ```
 
 ```python
-# 비동기 호출 예시
+import asyncio
 from kma import KmaClient
 
-async with KmaClient.aio_from_env() as kma:
-    # 3. 초단기예보 (향후 6시간 대략 예보)
-    short_items = await kma.forecast.short(nx=60, ny=127)
+
+async def main() -> None:
+    # 비동기 호출 예시
+
+    async with KmaClient.from_env() as kma:
+        # 3. 초단기예보 (향후 6시간 대략 예보)
+        short_items = await kma.forecast.short(nx=60, ny=127)
+
+
+asyncio.run(main())
 ```
 
 ---
@@ -69,7 +84,7 @@ async with KmaClient.aio_from_env() as kma:
   kma.forecast.now(location=LatLon(37.5665, 126.9780))
   kma.forecast.now(location=GridPoint(60, 127))
   kma.forecast.now(location={"latitude": 37.5665, "longitude": 126.9780})
-  ```
+```
 
 ### 3.2. PCP/SNO 강수량/적설량의 무리한 수치 변환 금지
 - 기상청 단기예보 응답에서 강수량(`PCP`), 적설량(`SNO`)은 `"1.0mm 미만"`, `"30.0~50.0mm"`, `"강수없음"` 같은 범주 문자열을 반환합니다.
@@ -81,7 +96,7 @@ async with KmaClient.aio_from_env() as kma:
   parse_amount("1.0mm 미만")   # 0.5 (반환됨)
   parse_amount("30.0~50.0mm") # 40.0
   parse_amount("강수없음")     # 0.0
-  ```
+```
 
 ### 3.3. KST 발표시각의 이해
 - 기상청 API는 실시간 기상 데이터를 반환하지 못하고, 특정 발표 주기(정각, 30분, 단기예보 하루 8회)가 있으며 서버 반영 지연시간(10분~40분)이 있습니다.

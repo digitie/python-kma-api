@@ -43,7 +43,16 @@ http://apis.data.go.kr/1360000/{service}/{operation}
 예:
 
 ```python
-client.request("MidFcstInfoService", "getMidFcst", {"stnId": "108", "tmFc": "202605010600"})
+from kma import DataGoKrClient
+import asyncio
+
+
+async def main() -> None:
+    async with DataGoKrClient.from_env() as client:
+        (await client.request("MidFcstInfoService", "getMidFcst", {"stnId": "108", "tmFc": "202605010600"}))
+
+
+asyncio.run(main())
 ```
 
 이 계층은 특정 endpoint를 개별 모델로 구현한 것이 아니라, 표준 data.go.kr envelope를 범용으로 처리합니다. 따라서 “개별 구현 endpoint 개수”에는 넣지 않습니다.
@@ -101,13 +110,31 @@ https://apihub.kma.go.kr/api/...
 예:
 
 ```python
-hub.request_path("/api/typ01/url/wrn_reg.php", {"tmfc": "0"})
+from kma import ApiHubGeneratedClient
+import asyncio
+
+
+async def main() -> None:
+    async with ApiHubGeneratedClient.from_env() as hub:
+        (await hub.request_path("/api/typ01/url/wrn_reg.php", {"tmfc": "0"}))
+
+
+asyncio.run(main())
 ```
 
 또한 `typ02/openApi` helper를 제공합니다.
 
 ```python
-hub.open_api("MidFcstInfoService", "getMidFcst", {"stnId": "108", "tmFc": "202605010600"})
+from kma import ApiHubGeneratedClient
+import asyncio
+
+
+async def main() -> None:
+    async with ApiHubGeneratedClient.from_env() as hub:
+        (await hub.open_api("MidFcstInfoService", "getMidFcst", {"stnId": "108", "tmFc": "202605010600"}))
+
+
+asyncio.run(main())
 ```
 
 APIHub는 텍스트, JSON, XML, 이미지, 바이너리 파일 응답이 섞여 있습니다. `kma`는 endpoint별 반환 스키마를 모두 Pydantic 모델로 고정하지는 않지만, 공식 목록에서 확인한 endpoint를 `ApiHubGeneratedClient`의 함수형 메서드로 제공합니다.
@@ -115,10 +142,16 @@ APIHub는 텍스트, JSON, XML, 이미지, 바이너리 파일 응답이 섞여 
 예:
 
 ```python
+import asyncio
 from kma import ApiHubGeneratedClient
 
-hub = ApiHubGeneratedClient.from_env()
-response = hub.kma_sfctm2(tm="202605010900", stn="108", help="1")
+
+async def main() -> None:
+    async with ApiHubGeneratedClient.from_env() as hub:
+        response = (await hub.kma_sfctm2(tm="202605010900", stn="108", help="1"))
+
+
+asyncio.run(main())
 ```
 
 전체 목록은 [docs/apihub-endpoints.md](apihub-endpoints.md)에 있습니다.

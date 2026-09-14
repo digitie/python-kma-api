@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import asyncio
 from typing import Any
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -27,7 +27,7 @@ class _FakeClient:
         self._statuses = list(statuses)
         self.calls = 0
 
-    def get(self, url: str, *, params: Any, timeout: float) -> _Resp:
+    async def get(self, url: str, *, params: Any, timeout: float) -> _Resp:
         self.calls += 1
         status = self._statuses.pop(0)
         return _Resp(status)
@@ -58,12 +58,12 @@ def test_backoff_with_jitter_uses_random_uniform(monkeypatch: pytest.MonkeyPatch
     assert _http._backoff_with_jitter(0.3, 2) == pytest.approx(1.2)
 
 
-def test_get_with_retries_retries_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_get_with_retries_retries_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
     slept: list[float] = []
-    monkeypatch.setattr(_http.time, "sleep", lambda s: slept.append(s))
+    monkeypatch.setattr(_http.asyncio, "sleep", AsyncMock(side_effect=slept.append))
     client = _FakeClient([503, 200])
 
-    response = _http.get_with_retries(
+    response = await _http.get_with_retries(
         client, "http://example.test", params=None, timeout=1, retries=3
     )
 
@@ -72,31 +72,37 @@ def test_get_with_retries_retries_then_succeeds(monkeypatch: pytest.MonkeyPatch)
     assert len(slept) == 1  # one backoff between the two attempts
 
 
-def test_get_with_retries_does_not_retry_on_404(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(_http.time, "sleep", lambda s: None)
+async def test_get_with_retries_does_not_retry_on_404(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(_http.asyncio, "sleep", AsyncMock())
     client = _FakeClient([404, 200])
 
     with pytest.raises(httpx.HTTPStatusError):
-        _http.get_with_retries(
-            client, "http://example.test", params=None, timeout=1, retries=3
+        (
+            await _http.get_with_retries(
+                client, "http://example.test", params=None, timeout=1, retries=3
+            )
         )
 
     assert client.calls == 1  # 404 is not retryable
 
 
-def test_get_with_retries_exhausts_and_raises(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(_http.time, "sleep", lambda s: None)
+async def test_get_with_retries_exhausts_and_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(_http.asyncio, "sleep", AsyncMock())
     client = _FakeClient([503, 503, 503])
 
     with pytest.raises(httpx.HTTPStatusError):
-        _http.get_with_retries(
-            client, "http://example.test", params=None, timeout=1, retries=2
+        (
+            await _http.get_with_retries(
+                client, "http://example.test", params=None, timeout=1, retries=2
+            )
         )
 
     assert client.calls == 3  # initial + 2 retries
 
 
-def test_async_get_with_retries_retries_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_async_get_with_retries_retries_then_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     async def _no_sleep(_s: float) -> None:
         return None
 
@@ -104,10 +110,10 @@ def test_async_get_with_retries_retries_then_succeeds(monkeypatch: pytest.Monkey
     client = _AsyncFakeClient([502, 200])
 
     async def run() -> None:
-        response = await _http.async_get_with_retries(
+        response = await _http.get_with_retries(
             client, "http://example.test", params=None, timeout=1, retries=3
         )
         assert response.status_code == 200
         assert client.calls == 2
 
-    asyncio.run(run())
+    await run()

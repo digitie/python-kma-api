@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import html
 import json
 import keyword
@@ -22,6 +23,9 @@ from typing import Any
 from urllib.parse import unquote, unquote_plus, urlsplit
 
 import httpx
+
+from kma import AsyncTokenBucket
+from kma._http import get_with_retries
 
 BASE_URL = "https://apihub.kma.go.kr"
 ROOT = Path(__file__).resolve().parents[1]
@@ -74,10 +78,11 @@ class Attachment:
     kind: str
 
 
-def main() -> None:
-    with httpx.Client(follow_redirects=True) as session:
-        endpoints = scrape_endpoints(session)
-        attachments = scrape_attachments(session)
+async def main() -> None:
+    async with httpx.AsyncClient(follow_redirects=True) as session:
+        budget = AsyncTokenBucket(5)
+        endpoints = await scrape_endpoints(session, budget)
+        attachments = await scrape_attachments(session, budget)
     assign_names(endpoints)
     OUTPUT.write_text(render_module(endpoints, attachments), encoding="utf-8")
     DOC_OUTPUT.write_text(render_docs(endpoints, attachments), encoding="utf-8")
@@ -86,18 +91,22 @@ def main() -> None:
     print(f"wrote endpoint catalog to {DOC_OUTPUT}")
 
 
-def scrape_endpoints(session: httpx.Client) -> list[Endpoint]:
+async def scrape_endpoints(
+    session: httpx.AsyncClient, budget: AsyncTokenBucket | None = None
+) -> list[Endpoint]:
+    budget = budget if budget is not None else AsyncTokenBucket(5)
     merged: OrderedDict[tuple[str, tuple[tuple[str, str], ...]], Endpoint] = OrderedDict()
     services: list[tuple[int, int, str]] = []
 
     for category_id in CATEGORY_IDS:
-        page = get_text(session, "/apiList.do", {"seqApi": category_id})
+        page = await get_text(session, budget, "/apiList.do", {"seqApi": category_id})
         for service in parse_const_array(page, "apiList"):
             service_id = int(service["seqApi"])
             service_name = str(service["nmApi"])
             services.append((category_id, service_id, service_name))
-            service_page = get_text(
+            service_page = await get_text(
                 session,
+                budget,
                 "/apiList.do",
                 {"seqApi": category_id, "seqApiSub": service_id},
             )
@@ -105,8 +114,9 @@ def scrape_endpoints(session: httpx.Client) -> list[Endpoint]:
                 merge_endpoint(merged, endpoint)
 
             try:
-                generator_page = get_text(
+                generator_page = await get_text(
                     session,
+                    budget,
                     "/generateAPIUrl.do",
                     {"seqApi": category_id, "seqApiSub": service_id},
                 )
@@ -124,8 +134,9 @@ def scrape_endpoints(session: httpx.Client) -> list[Endpoint]:
                 ):
                     merge_endpoint(merged, endpoint)
 
-            for endpoint in parse_text_attachment_examples(
+            for endpoint in await parse_text_attachment_examples(
                 session,
+                budget,
                 category_id,
                 service_id,
                 service_name,
@@ -136,16 +147,20 @@ def scrape_endpoints(session: httpx.Client) -> list[Endpoint]:
     return list(merged.values())
 
 
-def scrape_attachments(session: httpx.Client) -> list[Attachment]:
+async def scrape_attachments(
+    session: httpx.AsyncClient, budget: AsyncTokenBucket | None = None
+) -> list[Attachment]:
+    budget = budget if budget is not None else AsyncTokenBucket(5)
     attachments: list[Attachment] = []
     seen: set[tuple[int, int, str, str]] = set()
     for category_id in CATEGORY_IDS:
-        page = get_text(session, "/apiList.do", {"seqApi": category_id})
+        page = await get_text(session, budget, "/apiList.do", {"seqApi": category_id})
         for service in parse_const_array(page, "apiList"):
             service_id = int(service["seqApi"])
             service_name = str(service["nmApi"])
-            service_page = get_text(
+            service_page = await get_text(
                 session,
+                budget,
                 "/apiList.do",
                 {"seqApi": category_id, "seqApiSub": service_id},
             )
@@ -163,8 +178,12 @@ def scrape_attachments(session: httpx.Client) -> list[Attachment]:
     return attachments
 
 
-def get_text(session: httpx.Client, path: str, params: dict[str, Any]) -> str:
-    response = session.get(f"{BASE_URL}{path}", params=params, timeout=30)
+async def get_text(
+    session: httpx.AsyncClient, budget: AsyncTokenBucket, path: str, params: dict[str, Any]
+) -> str:
+    response = await get_with_retries(
+        session, f"{BASE_URL}{path}", params=params, timeout=30, retries=0, rate_limiter=budget
+    )
     response.raise_for_status()
     return response.text
 
@@ -241,8 +260,9 @@ def parse_generator_page(
     return endpoints
 
 
-def parse_text_attachment_examples(
-    session: httpx.Client,
+async def parse_text_attachment_examples(
+    session: httpx.AsyncClient,
+    budget: AsyncTokenBucket,
     category_id: int,
     service_id: int,
     service_name: str,
@@ -261,7 +281,14 @@ def parse_text_attachment_examples(
             if "예제" not in label and filename.lower() != "main.txt":
                 continue
             try:
-                response = session.get(f"{BASE_URL}{href}", timeout=30)
+                response = await get_with_retries(
+                    session,
+                    f"{BASE_URL}{href}",
+                    params=None,
+                    timeout=30,
+                    retries=0,
+                    rate_limiter=budget,
+                )
                 response.raise_for_status()
             except httpx.HTTPError:
                 continue
@@ -517,7 +544,7 @@ def render_module(endpoints: list[Endpoint], attachments: list[Attachment]) -> s
             "    def sample_params(self, name: str) -> Mapping[str, str]:",
             "        return self.endpoint(name).sample_params",
             "",
-            "    def call_endpoint(",
+            "    async def call_endpoint(",
             "        self,",
             "        name: str,",
             "        params: Mapping[str, Any] | None = None,",
@@ -530,11 +557,11 @@ def render_module(endpoints: list[Endpoint], attachments: list[Attachment]) -> s
             "            request_params.update(spec.sample_params)",
             "        if params:",
             "            request_params.update(params)",
-            "        if any(kind == \"bare\" for kind, _name in spec.query_parts):",
-            "            return self.request_query_parts(spec.path, spec.query_parts, request_params)",
-            "        return self.request_path(spec.path, request_params)",
+            '        if any(kind == "bare" for kind, _name in spec.query_parts):',
+            "            return await self.request_query_parts(spec.path, spec.query_parts, request_params)",
+            "        return await self.request_path(spec.path, request_params)",
             "",
-            "    def text_endpoint(",
+            "    async def text_endpoint(",
             "        self,",
             "        name: str,",
             "        params: Mapping[str, Any] | None = None,",
@@ -542,18 +569,18 @@ def render_module(endpoints: list[Endpoint], attachments: list[Attachment]) -> s
             "        use_sample: bool = False,",
             "        delimiter: str | None = None,",
             "    ) -> ApiHubTextTable:",
-            "        return self.call_endpoint(name, params, use_sample=use_sample).text_table(",
+            "        return (await self.call_endpoint(name, params, use_sample=use_sample)).text_table(",
             "            delimiter=delimiter",
             "        )",
             "",
-            "    def image_endpoint(",
+            "    async def image_endpoint(",
             "        self,",
             "        name: str,",
             "        params: Mapping[str, Any] | None = None,",
             "        *,",
             "        use_sample: bool = False,",
             "    ) -> ApiHubImage:",
-            "        return self.call_endpoint(name, params, use_sample=use_sample).image()",
+            "        return (await self.call_endpoint(name, params, use_sample=use_sample)).image()",
             "",
         ]
     )
@@ -602,28 +629,52 @@ def render_docs(endpoints: list[Endpoint], attachments: list[Attachment]) -> str
         "",
         "## 사용법",
         "",
-        "```python",
-        "from kma import ApiHubGeneratedClient",
-        "",
-        "hub = ApiHubGeneratedClient.from_env()",
-        "response = hub.kma_sfctm2(tm=\"202605010900\", stn=\"108\", help=\"1\")",
-        "rows = response.text_table().rows",
-        "```",
+        '```python',
+        'import asyncio',
+        'from kma import ApiHubGeneratedClient',
+        '',
+        '',
+        'async def main() -> None:',
+        '    async with ApiHubGeneratedClient.from_env() as hub:',
+        '        response = (await hub.kma_sfctm2(tm="202605010900", stn="108", help="1"))',
+        '        rows = response.text_table().rows',
+        '',
+        '',
+        'asyncio.run(main())',
+        '```',
         "",
         "홈페이지 예제 값을 그대로 써서 호출하려면 `use_sample=True`를 넘깁니다. 실제 운영 코드에서는 예제 날짜가 오래되었을 수 있으므로 필요한 인자를 명시하는 것을 권장합니다.",
         "",
-        "```python",
-        "response = hub.kma_sfctm2(use_sample=True, stn=\"108\")",
-        "```",
+        '```python',
+        'from kma import ApiHubGeneratedClient',
+        'import asyncio',
+        '',
+        '',
+        'async def main() -> None:',
+        '    async with ApiHubGeneratedClient.from_env() as hub:',
+        '        response = (await hub.kma_sfctm2(use_sample=True, stn="108"))',
+        '',
+        '',
+        'asyncio.run(main())',
+        '```',
         "",
         "이미지 endpoint는 bytes와 포맷/크기 정보를 함께 얻을 수 있습니다.",
         "",
-        "```python",
-        "image = hub.image_endpoint(\"api_iwa_img_url_api_ret_grid_img\", use_sample=True)",
-        "print(image.format, image.width, image.height)",
-        "```",
+        '```python',
+        'from kma import ApiHubGeneratedClient',
+        'import asyncio',
+        '',
+        '',
+        'async def main() -> None:',
+        '    async with ApiHubGeneratedClient.from_env() as hub:',
+        '        image = (await hub.image_endpoint("api_iwa_img_url_api_ret_grid_img", use_sample=True))',
+        '        print(image.format, image.width, image.height)',
+        '',
+        '',
+        'asyncio.run(main())',
+        '```',
         "",
-        "이름 없는 query string을 쓰는 legacy 그래픽 URL은 `arg1`, `arg2`처럼 순서형 인자로 노출합니다. 예를 들어 `?202305031000&0&...` 형태는 `arg1=\"202305031000\"`, `arg2=\"0\"`로 넘깁니다.",
+        '이름 없는 query string을 쓰는 legacy 그래픽 URL은 `arg1`, `arg2`처럼 순서형 인자로 노출합니다. 예를 들어 `?202305031000&0&...` 형태는 `arg1="202305031000"`, `arg2="0"`로 넘깁니다.',
         "",
         "## 첨부 자료 metadata",
         "",
@@ -659,7 +710,9 @@ def render_docs(endpoints: list[Endpoint], attachments: list[Attachment]) -> str
     lines.append("")
 
     for category_id in CATEGORY_IDS:
-        category_endpoints = [endpoint for endpoint in endpoints if endpoint.category_id == category_id]
+        category_endpoints = [
+            endpoint for endpoint in endpoints if endpoint.category_id == category_id
+        ]
         if not category_endpoints:
             continue
         lines.extend(
@@ -723,18 +776,18 @@ def render_method(endpoint: Endpoint) -> list[str]:
     doc = f"{endpoint.title}\n\nPath: {endpoint.path}\n파라미터: {params}"
     doc = "\n".join(textwrap.wrap(doc, width=88, replace_whitespace=False))
     lines = [
-        f"    def {endpoint.name}(",
+        f"    async def {endpoint.name}(",
         "        self,",
         "        *,",
         "        use_sample: bool = False,",
         "        **params: Any,",
         "    ) -> ApiHubResponse:",
         f'        """{doc}"""',
-        f"        return self.call_endpoint({endpoint.name!r}, params, use_sample=use_sample)",
+        f"        return await self.call_endpoint({endpoint.name!r}, params, use_sample=use_sample)",
         "",
     ]
     return lines
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

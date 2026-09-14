@@ -23,7 +23,7 @@ class FakeSession:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
-    def get(self, url: str, *, params: dict[str, Any], timeout: float) -> FakeResponse:
+    async def get(self, url: str, *, params: dict[str, Any], timeout: float) -> FakeResponse:
         self.calls.append((url, params))
         if url.endswith("/apiList.do") and "seqApiSub" not in params:
             return FakeResponse('const apiList = [{"seqApi":238,"nmApi":"테스트서비스"}];')
@@ -38,11 +38,11 @@ class FakeSession:
         raise AssertionError(f"unexpected URL: {url}")
 
 
-def test_scrape_endpoints_keeps_api_list_when_generator_page_fails() -> None:
+async def test_scrape_endpoints_keeps_api_list_when_generator_page_fails() -> None:
     original_categories = generator.CATEGORY_IDS
     generator.CATEGORY_IDS = (2,)
     try:
-        endpoints = generator.scrape_endpoints(FakeSession())  # type: ignore[arg-type]
+        endpoints = await generator.scrape_endpoints(FakeSession())  # type: ignore[arg-type]
     finally:
         generator.CATEGORY_IDS = original_categories
 

@@ -37,10 +37,19 @@
 `KmaError` 하위 예외에는 선택적 metadata가 있습니다.
 
 ```python
-try:
-    kma.now(nx=60, ny=127)
-except KmaError as exc:
-    print(exc.failure_kind, exc.retryable, exc.metadata)
+from kma import KmaClient
+import asyncio
+
+
+async def main() -> None:
+    async with KmaClient.from_env() as kma:
+        try:
+            (await kma.now(nx=60, ny=127))
+        except KmaError as exc:
+            print(exc.failure_kind, exc.retryable, exc.metadata)
+
+
+asyncio.run(main())
 ```
 
 분류 기준:
@@ -133,10 +142,18 @@ kma now --lat 37.5665 --lon 126.9780 --nx 60 --ny 127
 Python 코드에서는 좌표계를 명확히 하기 위해 값 객체를 사용할 수 있습니다.
 
 ```python
+from kma import KmaClient
+import asyncio
 from kma import GridPoint, LatLon
 
-kma.now(location=LatLon(37.5665, 126.9780))
-kma.now(location=GridPoint(60, 127))
+
+async def main() -> None:
+    async with KmaClient.from_env() as kma:
+        (await kma.now(location=LatLon(37.5665, 126.9780)))
+        (await kma.now(location=GridPoint(60, 127)))
+
+
+asyncio.run(main())
 ```
 
 앱 저장 경계에서 `latitude`/`longitude` 이름을 쓴다면 명시적 alias를 사용할 수 있습니다.
@@ -189,10 +206,16 @@ pip install requests
 - 순서형 값은 `arg1`, `arg2`로 넘깁니다.
 
 ```python
+import asyncio
 from kma import ApiHubGeneratedClient
 
-hub = ApiHubGeneratedClient.from_env()
-response = hub.aws3_nph_awsm_tms_h06(use_sample=True)
+
+async def main() -> None:
+    async with ApiHubGeneratedClient.from_env() as hub:
+        response = (await hub.aws3_nph_awsm_tms_h06(use_sample=True))
+
+
+asyncio.run(main())
 ```
 
 ## APIHub 함수 이름을 찾기 어려움
@@ -224,8 +247,17 @@ APIHub와 data.go.kr는 서로 다른 gateway입니다.
 typed 모델은 `raw`와 sanitized `metadata`를 함께 제공합니다.
 
 ```python
-snapshot = kma.now(nx=60, ny=127)
-payload = snapshot.model_dump(mode="json")
+from kma import KmaClient
+import asyncio
+
+
+async def main() -> None:
+    async with KmaClient.from_env() as kma:
+        snapshot = (await kma.now(nx=60, ny=127))
+        payload = snapshot.model_dump(mode="json")
+
+
+asyncio.run(main())
 ```
 
 이 결과를 그대로 raw 저장에 쓰거나, 앱에서 필요한 필드만 골라 serving 저장에 사용할 수 있습니다. `metadata.request_params`에는 인증키 원문이 없습니다.

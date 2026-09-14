@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import AsyncIterator, Callable, Iterator, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
@@ -13,19 +13,21 @@ import httpx
 from ._credentials import DATA_GOKR_ENV_NAMES, first_env_value, normalize_api_key
 from ._http import (
     NO_DATA_RESULT_CODE,
-    async_get_with_retries,
     build_async_client,
-    build_session,
     empty_kma_body,
     get_with_retries,
     raise_for_kma_http_error,
     raise_for_kma_network_error,
     raise_for_kma_result_code,
     raise_for_kma_xml_error_body,
+    register_credential_param,
+    validate_async_session,
 )
 from ._parsing import float_or_none as _float_or_none
 from ._parsing import int_or_none as _int_or_none
 from ._parsing import str_or_none as _str_or_none
+from ._ratelimit import AsyncTokenBucket
+from ._redact import credential_values, redact_debug, redact_exception
 from .catalog import ApiCatalogEntry, api_catalog
 from .codes import label_for, normalize_value
 from .datagokr_catalog import (
@@ -35,7 +37,7 @@ from .datagokr_catalog import (
 )
 from .debug import DebugRun, debug_error, jsonable, redact_sensitive
 from .enums import coerce_category
-from .exceptions import KmaParseError
+from .exceptions import KmaError, KmaParseError
 from .metadata import ResponseMetadata, make_response_metadata
 from .models import (
     AsosDailyItem,
@@ -49,7 +51,6 @@ from .models import (
     MidForecastItem,
     WeatherWarningItem,
 )
-from .pagination import aiter_pages as _aiter_pages
 from .pagination import iter_pages as _iter_pages
 from .time_utils import (
     KST,
@@ -102,7 +103,8 @@ class DataGoKrClient:
         base_url: str = DATA_GOKR_BASE_URL,
         service_key_param: str = "serviceKey",
         session: Any | None = None,
-        async_session: Any | None = None,
+        max_rps: float = 5.0,
+        rate_limiter: AsyncTokenBucket | None = None,
     ) -> None:
         if not service_key_param:
             raise ValueError("service_key_param is required")
@@ -111,10 +113,28 @@ class DataGoKrClient:
         self.timeout = timeout
         self.retries = retries
         self.base_url = base_url.rstrip("/")
-        self.session = session or build_session(retries)
+        register_credential_param(self.service_key_param)
+        self._session = session
         self._owns_session = session is None
-        self._async_session = async_session
-        self._owns_async_session = async_session is None
+        validate_async_session(session)
+        self.rate_limiter = rate_limiter if rate_limiter is not None else AsyncTokenBucket(max_rps)
+        self.closed = False
+
+    def _ensure_open(self) -> None:
+        if self.closed:
+            raise RuntimeError("client is closed")
+
+    @property
+    def session(self) -> Any:
+        return self._get_session()
+
+    async def aclose(self) -> None:
+        if not self.closed:
+            self.closed = True
+            if self._owns_session and self._session is not None:
+                close = getattr(self._session, "aclose", None)
+                if callable(close):
+                    await close()
 
     @classmethod
     def from_env(cls, name: str = "DATA_GO_KR_SERVICE_KEY", **kwargs: Any) -> DataGoKrClient:
@@ -126,73 +146,14 @@ class DataGoKrClient:
         service_key = first_env_value(names)
         return cls(service_key, **kwargs)
 
-    @classmethod
-    def aio(cls, service_key: str, **kwargs: Any) -> AsyncDataGoKrClient:
-        """Create an async facade for the data.go.kr gateway."""
-
-        return AsyncDataGoKrClient(service_key, **kwargs)
-
-    @classmethod
-    def aio_from_env(
-        cls, name: str = "DATA_GO_KR_SERVICE_KEY", **kwargs: Any
-    ) -> AsyncDataGoKrClient:
-        """Create an async facade from environment credentials."""
-
-        return AsyncDataGoKrClient.from_env(name=name, **kwargs)
-
-    def close(self) -> None:
-        close = getattr(self.session, "close", None)
-        if self._owns_session and close is not None:
-            close()
-
-    async def aclose(self) -> None:
-        if self._async_session is None or not self._owns_async_session:
-            return
-        aclose = getattr(self._async_session, "aclose", None)
-        close = getattr(self._async_session, "close", None)
-        if aclose is not None:
-            await aclose()
-        elif close is not None:
-            close()
-
-    def __enter__(self) -> DataGoKrClient:
-        return self
-
-    def __exit__(self, *_exc: object) -> None:
-        self.close()
-
     async def __aenter__(self) -> DataGoKrClient:
+        self._ensure_open()
         return self
 
     async def __aexit__(self, *_exc: object) -> None:
         await self.aclose()
 
-    def request(
-        self,
-        service: str,
-        operation: str,
-        params: Mapping[str, Any] | None = None,
-        *,
-        data_type: str = "JSON",
-        page_no: int = 1,
-        num_of_rows: int = 10,
-    ) -> Mapping[str, Any]:
-        """JSON 응답을 지원하는 data.go.kr 기상청 service operation을 호출합니다.
-
-        `service`는 `MidFcstInfoService` 같은 path segment이고,
-        `operation`은 `getMidFcst` 같은 endpoint입니다.
-        """
-
-        return self._request_with_metadata(
-            service,
-            operation,
-            params,
-            data_type=data_type,
-            page_no=page_no,
-            num_of_rows=num_of_rows,
-        ).body
-
-    async def arequest(
+    async def request(
         self,
         service: str,
         operation: str,
@@ -205,7 +166,7 @@ class DataGoKrClient:
         """Asynchronously call a data.go.kr KMA service operation."""
 
         return (
-            await self._arequest_with_metadata(
+            await self._request_with_metadata(
                 service,
                 operation,
                 params,
@@ -215,29 +176,7 @@ class DataGoKrClient:
             )
         ).body
 
-    def request_with_metadata(
-        self,
-        service: str,
-        operation: str,
-        params: Mapping[str, Any] | None = None,
-        *,
-        data_type: str = "JSON",
-        page_no: int = 1,
-        num_of_rows: int = 10,
-    ) -> tuple[Mapping[str, Any], ResponseMetadata]:
-        """service operation을 호출하고 `(body, metadata)`를 반환합니다."""
-
-        response = self._request_with_metadata(
-            service,
-            operation,
-            params,
-            data_type=data_type,
-            page_no=page_no,
-            num_of_rows=num_of_rows,
-        )
-        return response.body, response.metadata
-
-    async def arequest_with_metadata(
+    async def request_with_metadata(
         self,
         service: str,
         operation: str,
@@ -249,7 +188,7 @@ class DataGoKrClient:
     ) -> tuple[Mapping[str, Any], ResponseMetadata]:
         """Asynchronously call a service operation and return `(body, metadata)`."""
 
-        response = await self._arequest_with_metadata(
+        response = await self._request_with_metadata(
             service,
             operation,
             params,
@@ -259,7 +198,7 @@ class DataGoKrClient:
         )
         return response.body, response.metadata
 
-    def debug_fetch(
+    async def debug_fetch(
         self,
         service: str,
         operation: str,
@@ -310,7 +249,7 @@ class DataGoKrClient:
 
         started_at = time.monotonic()
         try:
-            body, metadata = self.request_with_metadata(
+            body, metadata = await self.request_with_metadata(
                 clean_service,
                 clean_operation,
                 clean_params,
@@ -333,15 +272,19 @@ class DataGoKrClient:
         except Exception as exc:
             elapsed_ms = (time.monotonic() - started_at) * 1000
             trace.append(f"요청 실패: {exc.__class__.__name__} ({elapsed_ms:.0f}ms)")
-            return DebugRun(
-                function=endpoint,
-                input=input_data,
-                request=request_info,
-                response={},
-                parsed=None,
-                processed=None,
-                trace=trace,
-                error=debug_error(exc),
+            return redact_debug(
+                DebugRun(
+                    function=endpoint,
+                    input=input_data,
+                    request=request_info,
+                    response={},
+                    parsed=None,
+                    processed=None,
+                    trace=trace,
+                    error=debug_error(exc),
+                ),
+                self.service_key,
+                *credential_values(params, self.service_key_param),
             )
 
         elapsed_ms = (time.monotonic() - started_at) * 1000
@@ -354,17 +297,21 @@ class DataGoKrClient:
         parsed_model = (
             models if isinstance(processed, list) else (models[0] if models else jsonable(body))
         )
-        return DebugRun(
-            function=endpoint,
-            input=input_data,
-            request={**request_info, "query": redact_sensitive(dict(metadata.request_params))},
-            response={"status_code": 200, "body": jsonable(body)},
-            parsed=parsed_model,
-            processed=processed,
-            trace=trace,
+        return redact_debug(
+            DebugRun(
+                function=endpoint,
+                input=input_data,
+                request={**request_info, "query": redact_sensitive(dict(metadata.request_params))},
+                response={"status_code": 200, "body": jsonable(body)},
+                parsed=parsed_model,
+                processed=processed,
+                trace=trace,
+            ),
+            self.service_key,
+            *credential_values(params, self.service_key_param),
         )
 
-    def _request_with_metadata(
+    async def _request_with_metadata(
         self,
         service: str,
         operation: str,
@@ -374,169 +321,87 @@ class DataGoKrClient:
         page_no: int = 1,
         num_of_rows: int = 10,
     ) -> _DataGoKrBody:
-        clean_service = service.strip("/")
-        clean_operation = operation.strip("/")
-        endpoint = f"{clean_service}/{clean_operation}"
-        request_params: dict[str, Any] = {
-            self.service_key_param: self.service_key,
-            "pageNo": page_no,
-            "numOfRows": num_of_rows,
-            "dataType": data_type,
-        }
-        if params:
-            request_params.update(params)
-        metadata_params = {
-            key: value for key, value in request_params.items() if key != self.service_key_param
-        }
-        metadata = make_response_metadata(
-            provider="data.go.kr",
-            service_name=clean_service,
-            endpoint=endpoint,
-            request_params=metadata_params,
-            base_date=_metadata_param(request_params, "base_date", "Base_date"),
-            base_time=str(request_params.get("base_time"))
-            if request_params.get("base_time") is not None
-            else None,
-        )
-
         try:
-            response = get_with_retries(
-                self.session,
-                f"{self.base_url}/{endpoint}",
-                params=request_params,
-                timeout=self.timeout,
-                retries=self.retries,
-            )
-        except httpx.HTTPStatusError as exc:
-            raise_for_kma_http_error(
-                exc,
+            clean_service = service.strip("/")
+            clean_operation = operation.strip("/")
+            endpoint = f"{clean_service}/{clean_operation}"
+            request_params: dict[str, Any] = {
+                self.service_key_param: self.service_key,
+                "pageNo": page_no,
+                "numOfRows": num_of_rows,
+                "dataType": data_type,
+            }
+            if params:
+                request_params.update(params)
+            metadata_params = {
+                key: value for key, value in request_params.items() if key != self.service_key_param
+            }
+            metadata = make_response_metadata(
                 provider="data.go.kr",
+                service_name=clean_service,
                 endpoint=endpoint,
-                label="data.go.kr",
-            )
-        except httpx.RequestError:
-            raise_for_kma_network_error(
-                provider="data.go.kr",
-                endpoint=endpoint,
-                label="data.go.kr",
-            )
-
-        try:
-            payload = response.json()
-        except ValueError as exc:
-            if raise_for_kma_xml_error_body(
-                response.text,
-                provider="data.go.kr",
-                endpoint=endpoint,
-                label="data.go.kr",
-            ):
-                return _DataGoKrBody(empty_kma_body(), metadata)
-            raise KmaParseError(
-                "data.go.kr response was not JSON",
-                provider="data.go.kr",
-                endpoint=endpoint,
-                status_code=response.status_code,
-                failure_kind="parse",
-                retryable=False,
-            ) from exc
-        return _DataGoKrBody(
-            _unwrap_data_gokr_payload(payload, endpoint=endpoint, status_code=response.status_code),
-            metadata,
-        )
-
-    async def _arequest_with_metadata(
-        self,
-        service: str,
-        operation: str,
-        params: Mapping[str, Any] | None = None,
-        *,
-        data_type: str = "JSON",
-        page_no: int = 1,
-        num_of_rows: int = 10,
-    ) -> _DataGoKrBody:
-        clean_service = service.strip("/")
-        clean_operation = operation.strip("/")
-        endpoint = f"{clean_service}/{clean_operation}"
-        request_params: dict[str, Any] = {
-            self.service_key_param: self.service_key,
-            "pageNo": page_no,
-            "numOfRows": num_of_rows,
-            "dataType": data_type,
-        }
-        if params:
-            request_params.update(params)
-        metadata_params = {
-            key: value for key, value in request_params.items() if key != self.service_key_param
-        }
-        metadata = make_response_metadata(
-            provider="data.go.kr",
-            service_name=clean_service,
-            endpoint=endpoint,
-            request_params=metadata_params,
-            base_date=_metadata_param(request_params, "base_date", "Base_date"),
-            base_time=str(request_params.get("base_time"))
-            if request_params.get("base_time") is not None
-            else None,
-        )
-
-        try:
-            response = await async_get_with_retries(
-                self._get_async_session(),
-                f"{self.base_url}/{endpoint}",
-                params=request_params,
-                timeout=self.timeout,
-                retries=self.retries,
-            )
-        except httpx.HTTPStatusError as exc:
-            raise_for_kma_http_error(
-                exc,
-                provider="data.go.kr",
-                endpoint=endpoint,
-                label="data.go.kr",
-            )
-        except httpx.RequestError:
-            raise_for_kma_network_error(
-                provider="data.go.kr",
-                endpoint=endpoint,
-                label="data.go.kr",
+                request_params=metadata_params,
+                base_date=_metadata_param(request_params, "base_date", "Base_date"),
+                base_time=str(request_params.get("base_time"))
+                if request_params.get("base_time") is not None
+                else None,
             )
 
-        try:
-            payload = response.json()
-        except ValueError as exc:
-            if raise_for_kma_xml_error_body(
-                response.text,
-                provider="data.go.kr",
-                endpoint=endpoint,
-                label="data.go.kr",
-            ):
-                return _DataGoKrBody(empty_kma_body(), metadata)
-            raise KmaParseError(
-                "data.go.kr response was not JSON",
-                provider="data.go.kr",
-                endpoint=endpoint,
-                status_code=response.status_code,
-                failure_kind="parse",
-                retryable=False,
-            ) from exc
-        return _DataGoKrBody(
-            _unwrap_data_gokr_payload(payload, endpoint=endpoint, status_code=response.status_code),
-            metadata,
-        )
+            try:
+                response = await get_with_retries(
+                    self._get_session(),
+                    f"{self.base_url}/{endpoint}",
+                    params=request_params,
+                    timeout=self.timeout,
+                    retries=self.retries,
+                    rate_limiter=self.rate_limiter,
+                    ensure_open=self._ensure_open,
+                )
+            except httpx.HTTPStatusError as exc:
+                raise_for_kma_http_error(
+                    exc,
+                    provider="data.go.kr",
+                    endpoint=endpoint,
+                    label="data.go.kr",
+                )
+            except httpx.RequestError:
+                raise_for_kma_network_error(
+                    provider="data.go.kr",
+                    endpoint=endpoint,
+                    label="data.go.kr",
+                )
 
-    def items(
-        self,
-        service: str,
-        operation: str,
-        params: Mapping[str, Any] | None = None,
-        **kwargs: Any,
-    ) -> list[Mapping[str, Any]]:
-        """operation을 호출하고 `response.body.items.item`을 list로 반환합니다."""
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                if raise_for_kma_xml_error_body(
+                    response.text,
+                    provider="data.go.kr",
+                    endpoint=endpoint,
+                    label="data.go.kr",
+                ):
+                    return _DataGoKrBody(empty_kma_body(), metadata)
+                raise KmaParseError(
+                    "data.go.kr response was not JSON",
+                    provider="data.go.kr",
+                    endpoint=endpoint,
+                    status_code=response.status_code,
+                    failure_kind="parse",
+                    retryable=False,
+                ) from exc
+            return _DataGoKrBody(
+                _unwrap_data_gokr_payload(
+                    payload, endpoint=endpoint, status_code=response.status_code
+                ),
+                metadata,
+            )
+        except KmaError as exc:
+            redact_exception(
+                exc, self.service_key, *credential_values(params, self.service_key_param)
+            )
+            raise exc from None
 
-        body = self.request(service, operation, params, **kwargs)
-        return _items_from_body(body, endpoint=f"{service.strip('/')}/{operation.strip('/')}")
-
-    async def aitems(
+    async def items(
         self,
         service: str,
         operation: str,
@@ -544,9 +409,14 @@ class DataGoKrClient:
         **kwargs: Any,
     ) -> list[Mapping[str, Any]]:
         """Asynchronously return `response.body.items.item` as a list."""
-
-        body = await self.arequest(service, operation, params, **kwargs)
-        return _items_from_body(body, endpoint=f"{service.strip('/')}/{operation.strip('/')}")
+        try:
+            body = await self.request(service, operation, params, **kwargs)
+            return _items_from_body(body, endpoint=f"{service.strip('/')}/{operation.strip('/')}")
+        except KmaError as exc:
+            redact_exception(
+                exc, self.service_key, *credential_values(params, self.service_key_param)
+            )
+            raise exc from None
 
     def datasets(self) -> tuple[DataGoKrDatasetSpec, ...]:
         """공공데이터포털의 기상청 data.go.kr OpenAPI dataset 목록을 반환합니다."""
@@ -572,7 +442,7 @@ class DataGoKrClient:
         except KeyError:
             raise ValueError(f"unknown KMA data.go.kr dataset_id: {clean_id}") from None
 
-    def request_dataset(
+    async def request_dataset(
         self,
         dataset_id: str | int,
         params: Mapping[str, Any] | None = None,
@@ -585,7 +455,7 @@ class DataGoKrClient:
         """공공데이터포털 dataset id로 기상청 data.go.kr dataset을 호출합니다."""
 
         _, service, selected_operation = self._dataset_service_operation(dataset_id, operation)
-        return self.request(
+        return await self.request(
             service,
             selected_operation,
             params,
@@ -594,29 +464,7 @@ class DataGoKrClient:
             num_of_rows=num_of_rows,
         )
 
-    def dataset_items(
-        self,
-        dataset_id: str | int,
-        params: Mapping[str, Any] | None = None,
-        *,
-        operation: str | None = None,
-        data_type: str = "JSON",
-        page_no: int = 1,
-        num_of_rows: int = 10,
-    ) -> list[DataGoKrItem]:
-        """기상청 data.go.kr dataset을 호출하고 metadata가 있는 원본 row를 반환합니다."""
-
-        _, service, selected_operation = self._dataset_service_operation(dataset_id, operation)
-        return self._raw_items(
-            service,
-            selected_operation,
-            params,
-            data_type=data_type,
-            page_no=page_no,
-            num_of_rows=num_of_rows,
-        )
-
-    async def adataset_items(
+    async def dataset_items(
         self,
         dataset_id: str | int,
         params: Mapping[str, Any] | None = None,
@@ -629,7 +477,7 @@ class DataGoKrClient:
         """Asynchronously call a data.go.kr dataset and return metadata-bearing rows."""
 
         _, service, selected_operation = self._dataset_service_operation(dataset_id, operation)
-        return await self._araw_items(
+        return await self._raw_items(
             service,
             selected_operation,
             params,
@@ -638,35 +486,7 @@ class DataGoKrClient:
             num_of_rows=num_of_rows,
         )
 
-    def iter_pages(
-        self,
-        service: str,
-        operation: str,
-        params: Mapping[str, Any] | None = None,
-        *,
-        data_type: str = "JSON",
-        start_page: int = 1,
-        num_of_rows: int = 10,
-        max_pages: int = 100,
-        max_items: int | None = None,
-    ) -> Iterator[Mapping[str, Any]]:
-        """명시적 안전장치와 함께 data.go.kr 페이지네이션 응답 body를 순회합니다."""
-
-        return _iter_pages(
-            lambda page_no: self.request(
-                service,
-                operation,
-                params,
-                data_type=data_type,
-                page_no=page_no,
-                num_of_rows=num_of_rows,
-            ),
-            start_page=start_page,
-            max_pages=max_pages,
-            max_items=max_items,
-        )
-
-    async def aiter_pages(
+    async def iter_pages(
         self,
         service: str,
         operation: str,
@@ -680,8 +500,8 @@ class DataGoKrClient:
     ) -> AsyncIterator[Mapping[str, Any]]:
         """Asynchronously iterate paginated data.go.kr response bodies."""
 
-        async for body in _aiter_pages(
-            lambda page_no: self.arequest(
+        async for body in _iter_pages(
+            lambda page_no: self.request(
                 service,
                 operation,
                 params,
@@ -695,7 +515,7 @@ class DataGoKrClient:
         ):
             yield body
 
-    def mid_forecast(
+    async def mid_forecast(
         self,
         *,
         stn_id: str | int,
@@ -706,14 +526,14 @@ class DataGoKrClient:
     ) -> list[MidForecastItem]:
         """지역을 추정하지 않고 `MidFcstInfoService/getMidFcst`를 호출합니다."""
 
-        return self._mid_items(
+        return await self._mid_items(
             "getMidFcst",
             {"stnId": str(stn_id), "tmFc": _resolve_tm_fc(tm_fc, when=when)},
             page_no=page_no,
             num_of_rows=num_of_rows,
         )
 
-    def mid_land_forecast(
+    async def mid_land_forecast(
         self,
         *,
         reg_id: str,
@@ -728,14 +548,14 @@ class DataGoKrClient:
         `kma`는 두 식별자 사이의 mapping을 추정하거나 유지하지 않습니다.
         """
 
-        return self._mid_items(
+        return await self._mid_items(
             "getMidLandFcst",
             {"regId": reg_id, "tmFc": _resolve_tm_fc(tm_fc, when=when)},
             page_no=page_no,
             num_of_rows=num_of_rows,
         )
 
-    def mid_temperature_forecast(
+    async def mid_temperature_forecast(
         self,
         *,
         reg_id: str,
@@ -749,14 +569,14 @@ class DataGoKrClient:
         `reg_id`는 단기예보 `nx`/`ny` 격자 좌표가 아닙니다.
         """
 
-        return self._mid_items(
+        return await self._mid_items(
             "getMidTa",
             {"regId": reg_id, "tmFc": _resolve_tm_fc(tm_fc, when=when)},
             page_no=page_no,
             num_of_rows=num_of_rows,
         )
 
-    def mid_sea_forecast(
+    async def mid_sea_forecast(
         self,
         *,
         reg_id: str,
@@ -767,14 +587,14 @@ class DataGoKrClient:
     ) -> list[MidForecastItem]:
         """기상청 중기해상예보 `reg_id`로 `getMidSeaFcst`를 호출합니다."""
 
-        return self._mid_items(
+        return await self._mid_items(
             "getMidSeaFcst",
             {"regId": reg_id, "tmFc": _resolve_tm_fc(tm_fc, when=when)},
             page_no=page_no,
             num_of_rows=num_of_rows,
         )
 
-    def asos_daily_weather(
+    async def asos_daily_weather(
         self,
         *,
         start_dt: str | date | datetime,
@@ -795,7 +615,7 @@ class DataGoKrClient:
         }
         if stn_ids is not None:
             params["stnIds"] = str(stn_ids)
-        fetched = self._items_with_metadata(
+        fetched = await self._items_with_metadata(
             ASOS_DAILY_SERVICE,
             "getWthrDataList",
             params,
@@ -804,7 +624,7 @@ class DataGoKrClient:
         )
         return [_asos_daily_item(row, fetched.metadata) for row in fetched.items]
 
-    def asos_hourly_weather(
+    async def asos_hourly_weather(
         self,
         *,
         start_dt: str | date | datetime,
@@ -829,7 +649,7 @@ class DataGoKrClient:
         }
         if stn_ids is not None:
             params["stnIds"] = str(stn_ids)
-        fetched = self._items_with_metadata(
+        fetched = await self._items_with_metadata(
             ASOS_HOURLY_SERVICE,
             "getWthrDataList",
             params,
@@ -838,7 +658,7 @@ class DataGoKrClient:
         )
         return [_asos_hourly_item(row, fetched.metadata) for row in fetched.items]
 
-    def weather_warning(
+    async def weather_warning(
         self,
         operation: str,
         params: Mapping[str, Any] | None = None,
@@ -854,7 +674,7 @@ class DataGoKrClient:
         `getPwnStatus`가 있습니다.
         """
 
-        return self._raw_items(
+        return await self._raw_items(
             WTHR_WRN_SERVICE,
             operation,
             params,
@@ -862,7 +682,7 @@ class DataGoKrClient:
             num_of_rows=num_of_rows,
         )
 
-    def weather_warning_list(
+    async def weather_warning_list(
         self,
         *,
         stn_id: str | int,
@@ -873,7 +693,7 @@ class DataGoKrClient:
     ) -> list[WeatherWarningItem]:
         """`WthrWrnInfoService/getWthrWrnList`를 호출하고 타입 row를 반환합니다."""
 
-        fetched = self._items_with_metadata(
+        fetched = await self._items_with_metadata(
             WTHR_WRN_SERVICE,
             "getWthrWrnList",
             _date_range_params(stn_id=stn_id, from_tm_fc=from_tm_fc, to_tm_fc=to_tm_fc),
@@ -882,7 +702,7 @@ class DataGoKrClient:
         )
         return [_weather_warning_item(row, fetched.metadata) for row in fetched.items]
 
-    def forecast_message(
+    async def forecast_message(
         self,
         operation: str,
         params: Mapping[str, Any] | None = None,
@@ -892,7 +712,7 @@ class DataGoKrClient:
     ) -> list[DataGoKrItem]:
         """`VilageFcstMsgService` operation을 호출합니다."""
 
-        return self._raw_items(
+        return await self._raw_items(
             VILAGE_FCST_MSG_SERVICE,
             operation,
             params,
@@ -900,7 +720,7 @@ class DataGoKrClient:
             num_of_rows=num_of_rows,
         )
 
-    def weather_situation(
+    async def weather_situation(
         self,
         *,
         stn_id: str | int,
@@ -909,14 +729,14 @@ class DataGoKrClient:
     ) -> list[DataGoKrItem]:
         """`VilageFcstMsgService/getWthrSituation`을 호출합니다."""
 
-        return self.forecast_message(
+        return await self.forecast_message(
             "getWthrSituation",
             {"stnId": str(stn_id)},
             page_no=page_no,
             num_of_rows=num_of_rows,
         )
 
-    def land_forecast_message(
+    async def land_forecast_message(
         self,
         *,
         reg_id: str,
@@ -925,14 +745,14 @@ class DataGoKrClient:
     ) -> list[DataGoKrItem]:
         """`VilageFcstMsgService/getLandFcst`를 호출합니다."""
 
-        return self.forecast_message(
+        return await self.forecast_message(
             "getLandFcst",
             {"regId": reg_id},
             page_no=page_no,
             num_of_rows=num_of_rows,
         )
 
-    def sea_forecast_message(
+    async def sea_forecast_message(
         self,
         *,
         reg_id: str,
@@ -941,14 +761,14 @@ class DataGoKrClient:
     ) -> list[DataGoKrItem]:
         """`VilageFcstMsgService/getSeaFcst`를 호출합니다."""
 
-        return self.forecast_message(
+        return await self.forecast_message(
             "getSeaFcst",
             {"regId": reg_id},
             page_no=page_no,
             num_of_rows=num_of_rows,
         )
 
-    def beach_ultra_short_forecast(
+    async def beach_ultra_short_forecast(
         self,
         *,
         beach_num: str | int,
@@ -963,30 +783,33 @@ class DataGoKrClient:
         `base_date`와 `base_time`을 생략하면 `KmaClient.forecast_short()`와
         같은 규칙으로 최신 조회 가능 KST 초단기예보 base time을 선택합니다.
         """
+        try:
+            base_date_text, base_time_text = _resolve_base_date_time(
+                base_date,
+                base_time,
+                latest_ultra_srt_fcst_base,
+                when=when,
+            )
+            fetched = await self._items_with_metadata(
+                BEACH_INFO_SERVICE,
+                BEACH_ULTRA_SRT_FCST,
+                {
+                    "base_date": base_date_text,
+                    "base_time": base_time_text,
+                    "beach_num": _format_beach_num(beach_num),
+                },
+                page_no=page_no,
+                num_of_rows=num_of_rows,
+            )
+            return [
+                _beach_forecast_item(row, BEACH_ULTRA_SRT_FCST, metadata=fetched.metadata)
+                for row in fetched.items
+            ]
+        except KmaError as exc:
+            redact_exception(exc, self.service_key, *credential_values(None))
+            raise exc from None
 
-        base_date_text, base_time_text = _resolve_base_date_time(
-            base_date,
-            base_time,
-            latest_ultra_srt_fcst_base,
-            when=when,
-        )
-        fetched = self._items_with_metadata(
-            BEACH_INFO_SERVICE,
-            BEACH_ULTRA_SRT_FCST,
-            {
-                "base_date": base_date_text,
-                "base_time": base_time_text,
-                "beach_num": _format_beach_num(beach_num),
-            },
-            page_no=page_no,
-            num_of_rows=num_of_rows,
-        )
-        return [
-            _beach_forecast_item(row, BEACH_ULTRA_SRT_FCST, metadata=fetched.metadata)
-            for row in fetched.items
-        ]
-
-    def beach_forecast(
+    async def beach_forecast(
         self,
         *,
         beach_num: str | int,
@@ -1001,30 +824,33 @@ class DataGoKrClient:
         `base_date`와 `base_time`을 생략하면 `KmaClient.forecast()`와
         같은 규칙으로 최신 조회 가능 KST 단기예보 base time을 선택합니다.
         """
+        try:
+            base_date_text, base_time_text = _resolve_base_date_time(
+                base_date,
+                base_time,
+                latest_vilage_base,
+                when=when,
+            )
+            fetched = await self._items_with_metadata(
+                BEACH_INFO_SERVICE,
+                BEACH_VILAGE_FCST,
+                {
+                    "base_date": base_date_text,
+                    "base_time": base_time_text,
+                    "beach_num": _format_beach_num(beach_num),
+                },
+                page_no=page_no,
+                num_of_rows=num_of_rows,
+            )
+            return [
+                _beach_forecast_item(row, BEACH_VILAGE_FCST, metadata=fetched.metadata)
+                for row in fetched.items
+            ]
+        except KmaError as exc:
+            redact_exception(exc, self.service_key, *credential_values(None))
+            raise exc from None
 
-        base_date_text, base_time_text = _resolve_base_date_time(
-            base_date,
-            base_time,
-            latest_vilage_base,
-            when=when,
-        )
-        fetched = self._items_with_metadata(
-            BEACH_INFO_SERVICE,
-            BEACH_VILAGE_FCST,
-            {
-                "base_date": base_date_text,
-                "base_time": base_time_text,
-                "beach_num": _format_beach_num(beach_num),
-            },
-            page_no=page_no,
-            num_of_rows=num_of_rows,
-        )
-        return [
-            _beach_forecast_item(row, BEACH_VILAGE_FCST, metadata=fetched.metadata)
-            for row in fetched.items
-        ]
-
-    def beach_wave_height(
+    async def beach_wave_height(
         self,
         *,
         beach_num: str | int,
@@ -1033,20 +859,23 @@ class DataGoKrClient:
         num_of_rows: int = 10,
     ) -> list[BeachWaveHeight]:
         """해수욕장 파고 조회용 `BeachInfoservice/getWhBuoyBeach`를 호출합니다."""
+        try:
+            fetched = await self._items_with_metadata(
+                BEACH_INFO_SERVICE,
+                BEACH_WAVE_HEIGHT,
+                {
+                    "beach_num": _format_beach_num(beach_num),
+                    "searchTime": _format_yyyymmddhhmm(search_time),
+                },
+                page_no=page_no,
+                num_of_rows=num_of_rows,
+            )
+            return [_beach_wave_height(row, metadata=fetched.metadata) for row in fetched.items]
+        except KmaError as exc:
+            redact_exception(exc, self.service_key, *credential_values(None))
+            raise exc from None
 
-        fetched = self._items_with_metadata(
-            BEACH_INFO_SERVICE,
-            BEACH_WAVE_HEIGHT,
-            {
-                "beach_num": _format_beach_num(beach_num),
-                "searchTime": _format_yyyymmddhhmm(search_time),
-            },
-            page_no=page_no,
-            num_of_rows=num_of_rows,
-        )
-        return [_beach_wave_height(row, metadata=fetched.metadata) for row in fetched.items]
-
-    def beach_tide_info(
+    async def beach_tide_info(
         self,
         *,
         beach_num: str | int,
@@ -1055,20 +884,23 @@ class DataGoKrClient:
         num_of_rows: int = 10,
     ) -> list[BeachTideItem]:
         """해수욕장 조석 조회용 `BeachInfoservice/getTideInfoBeach`를 호출합니다."""
+        try:
+            fetched = await self._items_with_metadata(
+                BEACH_INFO_SERVICE,
+                BEACH_TIDE_INFO,
+                {
+                    "base_date": _format_yyyymmdd(base_date),
+                    "beach_num": _format_beach_num(beach_num),
+                },
+                page_no=page_no,
+                num_of_rows=num_of_rows,
+            )
+            return [_beach_tide_item(row, metadata=fetched.metadata) for row in fetched.items]
+        except KmaError as exc:
+            redact_exception(exc, self.service_key, *credential_values(None))
+            raise exc from None
 
-        fetched = self._items_with_metadata(
-            BEACH_INFO_SERVICE,
-            BEACH_TIDE_INFO,
-            {
-                "base_date": _format_yyyymmdd(base_date),
-                "beach_num": _format_beach_num(beach_num),
-            },
-            page_no=page_no,
-            num_of_rows=num_of_rows,
-        )
-        return [_beach_tide_item(row, metadata=fetched.metadata) for row in fetched.items]
-
-    def beach_sun_info(
+    async def beach_sun_info(
         self,
         *,
         beach_num: str | int,
@@ -1081,20 +913,23 @@ class DataGoKrClient:
         upstream Swagger는 다른 해수욕장 endpoint와 달리 요청 날짜 이름을
         `Base_date`로 표기합니다.
         """
+        try:
+            fetched = await self._items_with_metadata(
+                BEACH_INFO_SERVICE,
+                BEACH_SUN_INFO,
+                {
+                    "Base_date": _format_yyyymmdd(base_date),
+                    "beach_num": _format_beach_num(beach_num),
+                },
+                page_no=page_no,
+                num_of_rows=num_of_rows,
+            )
+            return [_beach_sun_time(row, metadata=fetched.metadata) for row in fetched.items]
+        except KmaError as exc:
+            redact_exception(exc, self.service_key, *credential_values(None))
+            raise exc from None
 
-        fetched = self._items_with_metadata(
-            BEACH_INFO_SERVICE,
-            BEACH_SUN_INFO,
-            {
-                "Base_date": _format_yyyymmdd(base_date),
-                "beach_num": _format_beach_num(beach_num),
-            },
-            page_no=page_no,
-            num_of_rows=num_of_rows,
-        )
-        return [_beach_sun_time(row, metadata=fetched.metadata) for row in fetched.items]
-
-    def beach_water_temperature(
+    async def beach_water_temperature(
         self,
         *,
         beach_num: str | int,
@@ -1103,20 +938,25 @@ class DataGoKrClient:
         num_of_rows: int = 10,
     ) -> list[BeachWaterTemperature]:
         """해수욕장 수온 조회용 `BeachInfoservice/getTwBuoyBeach`를 호출합니다."""
+        try:
+            fetched = await self._items_with_metadata(
+                BEACH_INFO_SERVICE,
+                BEACH_WATER_TEMPERATURE,
+                {
+                    "beach_num": _format_beach_num(beach_num),
+                    "searchTime": _format_yyyymmddhhmm(search_time),
+                },
+                page_no=page_no,
+                num_of_rows=num_of_rows,
+            )
+            return [
+                _beach_water_temperature(row, metadata=fetched.metadata) for row in fetched.items
+            ]
+        except KmaError as exc:
+            redact_exception(exc, self.service_key, *credential_values(None))
+            raise exc from None
 
-        fetched = self._items_with_metadata(
-            BEACH_INFO_SERVICE,
-            BEACH_WATER_TEMPERATURE,
-            {
-                "beach_num": _format_beach_num(beach_num),
-                "searchTime": _format_yyyymmddhhmm(search_time),
-            },
-            page_no=page_no,
-            num_of_rows=num_of_rows,
-        )
-        return [_beach_water_temperature(row, metadata=fetched.metadata) for row in fetched.items]
-
-    def tour_village_forecast(
+    async def tour_village_forecast(
         self,
         *,
         course_id: str | int,
@@ -1127,7 +967,7 @@ class DataGoKrClient:
     ) -> list[DataGoKrItem]:
         """`TourStnInfoService1/getTourStnVilageFcst1`을 호출합니다."""
 
-        return self._raw_items(
+        return await self._raw_items(
             TOUR_STN_SERVICE,
             "getTourStnVilageFcst1",
             {
@@ -1139,7 +979,7 @@ class DataGoKrClient:
             num_of_rows=num_of_rows,
         )
 
-    def city_tour_climate_index(
+    async def city_tour_climate_index(
         self,
         *,
         city_area_id: str | int,
@@ -1150,7 +990,7 @@ class DataGoKrClient:
     ) -> list[DataGoKrItem]:
         """`TourStnInfoService1/getCityTourClmIdx1`을 호출합니다."""
 
-        return self._raw_items(
+        return await self._raw_items(
             TOUR_STN_SERVICE,
             "getCityTourClmIdx1",
             {
@@ -1162,7 +1002,7 @@ class DataGoKrClient:
             num_of_rows=num_of_rows,
         )
 
-    def sensible_temperature_index(
+    async def sensible_temperature_index(
         self,
         *,
         area_no: str | int,
@@ -1173,7 +1013,7 @@ class DataGoKrClient:
     ) -> list[DataGoKrItem]:
         """`LivingWthrIdxServiceV4/getSenTaIdxV4`를 호출합니다."""
 
-        return self._living_weather_index(
+        return await self._living_weather_index(
             "getSenTaIdxV4",
             area_no=area_no,
             time=time,
@@ -1182,7 +1022,7 @@ class DataGoKrClient:
             num_of_rows=num_of_rows,
         )
 
-    def uv_index(
+    async def uv_index(
         self,
         *,
         area_no: str | int,
@@ -1192,7 +1032,7 @@ class DataGoKrClient:
     ) -> list[DataGoKrItem]:
         """`LivingWthrIdxServiceV4/getUVIdxV4`를 호출합니다."""
 
-        return self._living_weather_index(
+        return await self._living_weather_index(
             "getUVIdxV4",
             area_no=area_no,
             time=time,
@@ -1200,7 +1040,7 @@ class DataGoKrClient:
             num_of_rows=num_of_rows,
         )
 
-    def air_diffusion_index(
+    async def air_diffusion_index(
         self,
         *,
         area_no: str | int,
@@ -1210,7 +1050,7 @@ class DataGoKrClient:
     ) -> list[DataGoKrItem]:
         """`LivingWthrIdxServiceV4/getAirDiffusionIdxV4`를 호출합니다."""
 
-        return self._living_weather_index(
+        return await self._living_weather_index(
             "getAirDiffusionIdxV4",
             area_no=area_no,
             time=time,
@@ -1218,7 +1058,7 @@ class DataGoKrClient:
             num_of_rows=num_of_rows,
         )
 
-    def earthquake_info(
+    async def earthquake_info(
         self,
         operation: str,
         *,
@@ -1229,7 +1069,7 @@ class DataGoKrClient:
     ) -> list[DataGoKrItem]:
         """`EqkInfoService` operation을 호출합니다."""
 
-        return self._raw_items(
+        return await self._raw_items(
             EQK_INFO_SERVICE,
             operation,
             {"fromTmFc": _format_yyyymmdd(from_tm_fc), "toTmFc": _format_yyyymmdd(to_tm_fc)},
@@ -1237,7 +1077,7 @@ class DataGoKrClient:
             num_of_rows=num_of_rows,
         )
 
-    def earthquake_message(
+    async def earthquake_message(
         self,
         *,
         from_tm_fc: str | date | datetime,
@@ -1247,7 +1087,7 @@ class DataGoKrClient:
     ) -> list[DataGoKrItem]:
         """`EqkInfoService/getEqkMsg`를 호출합니다."""
 
-        return self.earthquake_info(
+        return await self.earthquake_info(
             "getEqkMsg",
             from_tm_fc=from_tm_fc,
             to_tm_fc=to_tm_fc,
@@ -1255,7 +1095,7 @@ class DataGoKrClient:
             num_of_rows=num_of_rows,
         )
 
-    def earthquake_message_list(
+    async def earthquake_message_list(
         self,
         *,
         from_tm_fc: str | date | datetime,
@@ -1265,7 +1105,7 @@ class DataGoKrClient:
     ) -> list[DataGoKrItem]:
         """`EqkInfoService/getEqkMsgList`를 호출합니다."""
 
-        return self.earthquake_info(
+        return await self.earthquake_info(
             "getEqkMsgList",
             from_tm_fc=from_tm_fc,
             to_tm_fc=to_tm_fc,
@@ -1273,7 +1113,7 @@ class DataGoKrClient:
             num_of_rows=num_of_rows,
         )
 
-    def tsunami_message(
+    async def tsunami_message(
         self,
         *,
         from_tm_fc: str | date | datetime,
@@ -1283,7 +1123,7 @@ class DataGoKrClient:
     ) -> list[DataGoKrItem]:
         """`EqkInfoService/getTsunamiMsg`를 호출합니다."""
 
-        return self.earthquake_info(
+        return await self.earthquake_info(
             "getTsunamiMsg",
             from_tm_fc=from_tm_fc,
             to_tm_fc=to_tm_fc,
@@ -1291,7 +1131,7 @@ class DataGoKrClient:
             num_of_rows=num_of_rows,
         )
 
-    def tsunami_message_list(
+    async def tsunami_message_list(
         self,
         *,
         from_tm_fc: str | date | datetime,
@@ -1301,7 +1141,7 @@ class DataGoKrClient:
     ) -> list[DataGoKrItem]:
         """`EqkInfoService/getTsunamiMsgList`를 호출합니다."""
 
-        return self.earthquake_info(
+        return await self.earthquake_info(
             "getTsunamiMsgList",
             from_tm_fc=from_tm_fc,
             to_tm_fc=to_tm_fc,
@@ -1309,7 +1149,7 @@ class DataGoKrClient:
             num_of_rows=num_of_rows,
         )
 
-    def _living_weather_index(
+    async def _living_weather_index(
         self,
         operation: str,
         *,
@@ -1325,7 +1165,7 @@ class DataGoKrClient:
         }
         if request_code is not None:
             params["requestCode"] = request_code
-        return self._raw_items(
+        return await self._raw_items(
             LIVING_WTHR_IDX_SERVICE,
             operation,
             params,
@@ -1341,8 +1181,7 @@ class DataGoKrClient:
         spec = self.dataset(dataset_id)
         if spec.gateway != "datagokr" or spec.service is None:
             raise ValueError(
-                f"{spec.dataset_id} is APIHub-linked; use ApiHubClient "
-                "or ApiHubGeneratedClient"
+                f"{spec.dataset_id} is APIHub-linked; use ApiHubClient or ApiHubGeneratedClient"
             )
         if operation is None:
             if len(spec.operations) == 1:
@@ -1360,7 +1199,7 @@ class DataGoKrClient:
                 raise ValueError("operation is required")
         return spec, spec.service, selected_operation
 
-    def _raw_items(
+    async def _raw_items(
         self,
         service: str,
         operation: str,
@@ -1370,7 +1209,7 @@ class DataGoKrClient:
         page_no: int = 1,
         num_of_rows: int = 10,
     ) -> list[DataGoKrItem]:
-        fetched = self._items_with_metadata(
+        fetched = await self._items_with_metadata(
             service,
             operation,
             params,
@@ -1390,7 +1229,7 @@ class DataGoKrClient:
             for row in fetched.items
         ]
 
-    async def _araw_items(
+    async def _items_with_metadata(
         self,
         service: str,
         operation: str,
@@ -1399,76 +1238,28 @@ class DataGoKrClient:
         data_type: str = "JSON",
         page_no: int = 1,
         num_of_rows: int = 10,
-    ) -> list[DataGoKrItem]:
-        fetched = await self._aitems_with_metadata(
-            service,
-            operation,
-            params,
-            data_type=data_type,
-            page_no=page_no,
-            num_of_rows=num_of_rows,
-        )
-        clean_service = service.strip("/")
-        clean_operation = operation.strip("/")
-        return [
-            DataGoKrItem(
-                service=clean_service,
-                operation=clean_operation,
-                raw=dict(row),
-                metadata=fetched.metadata,
+    ) -> _DataGoKrItems:
+        try:
+            response = await self._request_with_metadata(
+                service,
+                operation,
+                params,
+                data_type=data_type,
+                page_no=page_no,
+                num_of_rows=num_of_rows,
             )
-            for row in fetched.items
-        ]
+            endpoint = f"{service.strip('/')}/{operation.strip('/')}"
+            return _DataGoKrItems(
+                _items_from_body(response.body, endpoint=endpoint),
+                response.metadata,
+            )
+        except KmaError as exc:
+            redact_exception(
+                exc, self.service_key, *credential_values(params, self.service_key_param)
+            )
+            raise exc from None
 
-    def _items_with_metadata(
-        self,
-        service: str,
-        operation: str,
-        params: Mapping[str, Any] | None = None,
-        *,
-        data_type: str = "JSON",
-        page_no: int = 1,
-        num_of_rows: int = 10,
-    ) -> _DataGoKrItems:
-        response = self._request_with_metadata(
-            service,
-            operation,
-            params,
-            data_type=data_type,
-            page_no=page_no,
-            num_of_rows=num_of_rows,
-        )
-        endpoint = f"{service.strip('/')}/{operation.strip('/')}"
-        return _DataGoKrItems(
-            _items_from_body(response.body, endpoint=endpoint),
-            response.metadata,
-        )
-
-    async def _aitems_with_metadata(
-        self,
-        service: str,
-        operation: str,
-        params: Mapping[str, Any] | None = None,
-        *,
-        data_type: str = "JSON",
-        page_no: int = 1,
-        num_of_rows: int = 10,
-    ) -> _DataGoKrItems:
-        response = await self._arequest_with_metadata(
-            service,
-            operation,
-            params,
-            data_type=data_type,
-            page_no=page_no,
-            num_of_rows=num_of_rows,
-        )
-        endpoint = f"{service.strip('/')}/{operation.strip('/')}"
-        return _DataGoKrItems(
-            _items_from_body(response.body, endpoint=endpoint),
-            response.metadata,
-        )
-
-    def _mid_items(
+    async def _mid_items(
         self,
         operation: str,
         params: Mapping[str, Any],
@@ -1476,7 +1267,7 @@ class DataGoKrClient:
         page_no: int,
         num_of_rows: int,
     ) -> list[MidForecastItem]:
-        fetched = self._items_with_metadata(
+        fetched = await self._items_with_metadata(
             MID_FCST_SERVICE,
             operation,
             params,
@@ -1491,139 +1282,11 @@ class DataGoKrClient:
             for row in fetched.items
         ]
 
-    def _get_async_session(self) -> Any:
-        if self._async_session is None:
-            self._async_session = build_async_client()
-        return self._async_session
-
-
-class AsyncDataGoKrClient:
-    """Asynchronous facade for the data.go.kr KMA gateway.
-
-    Mirrors :class:`AsyncKmaClient`: ``DataGoKrClient.aio()`` returns one of
-    these, exposing the same method names as the synchronous client but as
-    coroutines (delegating to the ``a``-prefixed methods underneath).
-    """
-
-    def __init__(self, service_key: str, **kwargs: Any) -> None:
-        self._client = DataGoKrClient(service_key, **kwargs)
-        self.service_key = self._client.service_key
-        self.config = {
-            "base_url": self._client.base_url,
-            "timeout": self._client.timeout,
-            "retries": self._client.retries,
-        }
-        self.closed = False
-
-    @classmethod
-    def from_env(cls, name: str = "DATA_GO_KR_SERVICE_KEY", **kwargs: Any) -> AsyncDataGoKrClient:
-        names = (
-            DATA_GOKR_ENV_NAMES
-            if name == "DATA_GO_KR_SERVICE_KEY"
-            else (name, *DATA_GOKR_ENV_NAMES)
-        )
-        service_key = first_env_value(names)
-        return cls(service_key, **kwargs)
-
-    async def __aenter__(self) -> AsyncDataGoKrClient:
-        return self
-
-    async def __aexit__(self, *_exc: object) -> None:
-        await self.aclose()
-
-    async def aclose(self) -> None:
-        await self._client.aclose()
-        self._client.close()
-        self.closed = True
-
-    async def request(
-        self,
-        service: str,
-        operation: str,
-        params: Mapping[str, Any] | None = None,
-        *,
-        data_type: str = "JSON",
-        page_no: int = 1,
-        num_of_rows: int = 10,
-    ) -> Mapping[str, Any]:
-        return await self._client.arequest(
-            service,
-            operation,
-            params,
-            data_type=data_type,
-            page_no=page_no,
-            num_of_rows=num_of_rows,
-        )
-
-    async def request_with_metadata(
-        self,
-        service: str,
-        operation: str,
-        params: Mapping[str, Any] | None = None,
-        *,
-        data_type: str = "JSON",
-        page_no: int = 1,
-        num_of_rows: int = 10,
-    ) -> tuple[Mapping[str, Any], ResponseMetadata]:
-        return await self._client.arequest_with_metadata(
-            service,
-            operation,
-            params,
-            data_type=data_type,
-            page_no=page_no,
-            num_of_rows=num_of_rows,
-        )
-
-    async def items(
-        self,
-        service: str,
-        operation: str,
-        params: Mapping[str, Any] | None = None,
-        **kwargs: Any,
-    ) -> list[Mapping[str, Any]]:
-        return await self._client.aitems(service, operation, params, **kwargs)
-
-    async def dataset_items(
-        self,
-        dataset_id: str | int,
-        params: Mapping[str, Any] | None = None,
-        *,
-        operation: str | None = None,
-        data_type: str = "JSON",
-        page_no: int = 1,
-        num_of_rows: int = 10,
-    ) -> list[DataGoKrItem]:
-        return await self._client.adataset_items(
-            dataset_id,
-            params,
-            operation=operation,
-            data_type=data_type,
-            page_no=page_no,
-            num_of_rows=num_of_rows,
-        )
-
-    def iter_pages(
-        self,
-        service: str,
-        operation: str,
-        params: Mapping[str, Any] | None = None,
-        *,
-        data_type: str = "JSON",
-        start_page: int = 1,
-        num_of_rows: int = 10,
-        max_pages: int = 100,
-        max_items: int | None = None,
-    ) -> AsyncIterator[Mapping[str, Any]]:
-        return self._client.aiter_pages(
-            service,
-            operation,
-            params,
-            data_type=data_type,
-            start_page=start_page,
-            num_of_rows=num_of_rows,
-            max_pages=max_pages,
-            max_items=max_items,
-        )
+    def _get_session(self) -> Any:
+        self._ensure_open()
+        if self._session is None:
+            self._session = build_async_client()
+        return self._session
 
 
 def _resolve_base_date_time(
@@ -1869,8 +1532,6 @@ def _required_text(value: object, field: str) -> str:
     return text
 
 
-
-
 def _items_from_body(body: Mapping[str, Any], *, endpoint: str) -> list[Mapping[str, Any]]:
     try:
         raw_items = body["items"]["item"]
@@ -2001,8 +1662,6 @@ def _resolve_tm_fc(value: str | datetime | None, *, when: datetime | None) -> st
     if value is None:
         return latest_mid_fcst_time(when)
     return _format_tm_fc(value)
-
-
 
 
 def _unwrap_data_gokr_payload(
