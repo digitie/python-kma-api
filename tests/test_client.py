@@ -116,6 +116,39 @@ def _payload(items: Any) -> dict[str, Any]:
     }
 
 
+def _paged_payload(
+    items: Any, *, page_no: int, num_of_rows: int, total_count: int
+) -> dict[str, Any]:
+    return {
+        "response": {
+            "header": {"resultCode": "00", "resultMsg": "NORMAL_SERVICE"},
+            "body": {
+                "pageNo": page_no,
+                "numOfRows": num_of_rows,
+                "totalCount": total_count,
+                "items": {"item": items},
+            },
+        }
+    }
+
+
+class PagedFakeSession:
+    """Answers with a different payload per ``pageNo``, keyed by the request."""
+
+    def __init__(self, payloads_by_page: dict[int, dict[str, Any]]) -> None:
+        self.payloads_by_page = payloads_by_page
+        self.calls: list[dict[str, Any]] = []
+
+    async def get(self, url: str, *, params: dict[str, Any], timeout: float) -> FakeResponse:
+        self.calls.append({"url": url, "params": params, "timeout": timeout})
+        page_no = int(params["pageNo"])
+        return FakeResponse(self.payloads_by_page[page_no])
+
+    @property
+    def requested_pages(self) -> list[int]:
+        return [int(call["params"]["pageNo"]) for call in self.calls]
+
+
 def _error_payload(code: str, message: str = "ERROR") -> dict[str, Any]:
     return {
         "response": {
@@ -530,3 +563,79 @@ async def test_malformed_forecast_item_raises_parse_error() -> None:
     )
 
     (await assert_raises(KmaParseError, lambda: client.forecast(nx=60, ny=127)))
+
+
+async def test_a_second_page_is_fetched_rather_than_treated_as_a_parse_error() -> None:
+    """`getVilageFcst` alone carries a dozen categories over a 3-day, 3-hour
+    forecast; how many rows that produces varies with how much the office
+    published for that base time, and it does not always fit one page.
+    Treating a second page as an unrecoverable parse error turned an
+    ordinary large response into a failed run -- for however many
+    consecutive base times stayed over the line -- instead of one extra
+    request."""
+    session = PagedFakeSession(
+        {
+            1: _paged_payload(
+                [
+                    {"category": "T1H", "obsrValue": "18.4"},
+                    {"category": "REH", "obsrValue": "52"},
+                ],
+                page_no=1,
+                num_of_rows=2,
+                total_count=3,
+            ),
+            2: _paged_payload(
+                [{"category": "WSD", "obsrValue": "3.1"}],
+                page_no=2,
+                num_of_rows=2,
+                total_count=3,
+            ),
+        }
+    )
+    client = KmaClient("decoded-key", session=session)
+
+    snapshot = await client.now(nx=60, ny=127, when=datetime(2026, 4, 30, 14, 45, tzinfo=KST))
+
+    assert snapshot.temperature == 18.4
+    assert snapshot.humidity == 52
+    assert snapshot.wind_speed == 3.1
+    assert session.requested_pages == [1, 2]
+    assert snapshot.metadata is not None
+    # The paginated request differs from page to page only in pageNo; the
+    # metadata describes what identifies the fetch (base_date/base_time/grid),
+    # which is the same value on every page.
+    assert snapshot.metadata.base_time == "1400"
+
+
+async def test_pagination_gives_up_after_the_page_cap_rather_than_looping_forever() -> None:
+    """A response that never reports itself as the last page must fail
+    loudly and boundedly, not hang the run consuming pages one at a time."""
+
+    class NeverLastPageSession:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def get(
+            self, url: str, *, params: dict[str, Any], timeout: float
+        ) -> FakeResponse:
+            self.calls += 1
+            page_no = int(params["pageNo"])
+            # totalCount always claims one more row than this page reports,
+            # so has_next_page is true no matter how many pages are fetched.
+            return FakeResponse(
+                _paged_payload(
+                    [{"category": "T1H", "obsrValue": "18.4"}],
+                    page_no=page_no,
+                    num_of_rows=1,
+                    total_count=page_no + 1,
+                )
+            )
+
+    session = NeverLastPageSession()
+    client = KmaClient("decoded-key", session=session)
+
+    exc = await assert_raises(KmaParseError, lambda: client.now(nx=60, ny=127))
+
+    assert "paginat" in str(exc).lower()
+    # Bounded: the client gave up rather than fetching pages indefinitely.
+    assert session.calls <= 21
