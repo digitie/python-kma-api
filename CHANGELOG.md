@@ -13,6 +13,14 @@
 
 ### 수정
 
+- `getUltraSrtNcst`/`getUltraSrtFcst`/`getVilageFcst` 응답이 요청한 페이지 하나를 넘으면
+  `KmaClient._fetch_items()`가 재시도 불가 `KmaParseError("KMA response has more items than
+  the requested page size")`로 즉시 실패하던 문제 수정. 단기예보(`getVilageFcst`)는 3일치를
+  3시간 간격 최대 십수 개 카테고리로 발표하므로 한 base_time에 실제로 발표된 카테고리 수에 따라
+  1,000행 페이지를 넘을 수 있고, 그때마다 정상 응답을 파싱하지 않고 실패시켰다(운영에서 저녁 시간대에
+  걸쳐 여러 시간 연속 실패가 관측됨). `_fetch_items()`가 이제 `pageNo`를 늘려가며
+  `has_next_page()`가 거짓이 될 때까지 계속 가져와 합치고, 응답이 끝을 알리지 않는 경우를 대비해
+  `_MAX_FETCH_PAGES=20`으로 상한을 둔다.
 - asyncio 전환 재검증을 위한 2인 적대적 리뷰어 서브에이전트(동시성/자원관리 관점, 보안/데이터
   무결성 관점) 감사에서 발견·검증된 버그 수정: `ApiHubClient.aiter_pages()`/
   `AsyncApiHubClient.iter_pages()`가 공용 `pagination.aiter_pages()` 헬퍼를 거치지 않고

@@ -44,6 +44,12 @@ from .time_utils import (
 DEFAULT_BASE_URL = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0"
 SERVICE_NAME = "VilageFcstInfoService_2.0"
 
+#: Safety cap on how many pages one grid's forecast may take. At 1,000 rows
+#: per page this has never needed more than one in practice; the cap exists to
+#: turn a data.go.kr response that never reports itself as the last page into
+#: a clear error instead of an unbounded loop.
+_MAX_FETCH_PAGES = 20
+
 
 @dataclass(frozen=True)
 class _KmaBody:
@@ -274,44 +280,53 @@ class KmaClient:
         nx: int,
         ny: int,
     ) -> _FetchedItems:
-        response = await self._request_with_metadata(
-            endpoint,
-            {
-                "base_date": base_date,
-                "base_time": base_time,
-                "nx": nx,
-                "ny": ny,
-            },
-        )
-        if has_next_page(response.body):
-            raise KmaParseError(
-                "KMA response has more items than the requested page size",
-                provider="data.go.kr",
-                endpoint=enum_value(endpoint),
-                failure_kind="parse",
-                retryable=False,
+        """Fetch every page of one grid's response.
+
+        `getVilageFcst` alone carries up to a dozen categories over a 3-day,
+        3-hour-step forecast, and the item count that produces varies with how
+        many of those categories the office actually published for this base
+        time -- comfortably under our 1,000-row page most of the time, but not
+        always. Treating a second page as a hard, non-retryable parse error
+        (the previous behaviour here) turned an ordinary large response into a
+        failed run instead of one extra request, silently for however many
+        consecutive base times stayed over the line.
+        """
+        endpoint_name = enum_value(endpoint)
+        items: list[Mapping[str, Any]] = []
+        metadata: ResponseMetadata | None = None
+        page_no = 1
+        while True:
+            response = await self._request_with_metadata(
+                endpoint,
+                {
+                    "base_date": base_date,
+                    "base_time": base_time,
+                    "nx": nx,
+                    "ny": ny,
+                    "pageNo": page_no,
+                },
             )
-        try:
-            items = response.body["items"]["item"]
-        except (KeyError, TypeError) as exc:
-            raise KmaParseError(
-                "KMA response did not contain items.item",
-                provider="data.go.kr",
-                endpoint=enum_value(endpoint),
-                failure_kind="parse",
-                retryable=False,
-            ) from exc
-        if isinstance(items, Mapping):
-            return _FetchedItems([items], response.metadata)
-        if not isinstance(items, list):
-            raise KmaParseError(
-                "KMA response items.item was not a list",
-                provider="data.go.kr",
-                endpoint=enum_value(endpoint),
-                failure_kind="parse",
-                retryable=False,
-            )
-        return _FetchedItems(items, response.metadata)
+            if metadata is None:
+                # The paginated request differs from page to page only in
+                # pageNo; base_date/base_time/nx/ny -- everything this
+                # metadata actually records -- stay fixed, so the first page
+                # describes the whole fetch.
+                metadata = response.metadata
+            items.extend(_page_items(response.body, endpoint_name))
+            if not has_next_page(response.body):
+                break
+            page_no += 1
+            if page_no > _MAX_FETCH_PAGES:
+                raise KmaParseError(
+                    f"KMA response did not finish paginating after "
+                    f"{_MAX_FETCH_PAGES} pages",
+                    provider="data.go.kr",
+                    endpoint=endpoint_name,
+                    failure_kind="parse",
+                    retryable=False,
+                )
+        assert metadata is not None
+        return _FetchedItems(items, metadata)
 
     async def _request(
         self,
@@ -518,6 +533,32 @@ def _parse_kma_body(response: Any, endpoint_name: str, metadata: ResponseMetadat
             retryable=False,
         )
     return _KmaBody(body, metadata)
+
+
+def _page_items(body: Mapping[str, Any], endpoint_name: str) -> list[Mapping[str, Any]]:
+    """Extract one page's ``items.item`` list, raising the same parse errors
+    ``_fetch_items`` always has for a shape it doesn't recognise."""
+    try:
+        items = body["items"]["item"]
+    except (KeyError, TypeError) as exc:
+        raise KmaParseError(
+            "KMA response did not contain items.item",
+            provider="data.go.kr",
+            endpoint=endpoint_name,
+            failure_kind="parse",
+            retryable=False,
+        ) from exc
+    if isinstance(items, Mapping):
+        return [items]
+    if not isinstance(items, list):
+        raise KmaParseError(
+            "KMA response items.item was not a list",
+            provider="data.go.kr",
+            endpoint=endpoint_name,
+            failure_kind="parse",
+            retryable=False,
+        )
+    return items
 
 
 def _forecast_item(
