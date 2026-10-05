@@ -273,7 +273,9 @@ def test_is_missing_does_not_round_a_value_just_below_the_threshold() -> None:
     assert is_missing(Decimal("899.99999999999999999999999999999")) is False
 
 
-@pytest.mark.parametrize("value", ["NaN", "nan", "Infinity", "-Infinity", "inf", math.nan, math.inf])
+@pytest.mark.parametrize(
+    "value", ["NaN", "nan", "Infinity", "-Infinity", "inf", math.nan, math.inf]
+)
 def test_kma_int_or_none_returns_none_for_non_finite_values(value: object) -> None:
     assert kma_int_or_none(value) is None
 
