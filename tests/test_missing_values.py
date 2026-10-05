@@ -19,6 +19,7 @@ import kma
 from kma import is_missing
 from kma.client import KmaClient
 from kma.codes import normalize_value
+from kma.enums import enum_value
 from kma.time_utils import KST
 from kma.timeline import pivot_forecast_items
 
@@ -162,7 +163,7 @@ async def test_forecast_reports_missing_sentinels_as_none() -> None:
 
     forecast = await client.forecast(nx=60, ny=127, when=_WHEN)
 
-    values = {str(item.category): item.value for item in forecast}
+    values = {enum_value(item.category): item.value for item in forecast}
     assert values == {
         "TMP": None,
         "REH": None,
@@ -172,7 +173,7 @@ async def test_forecast_reports_missing_sentinels_as_none() -> None:
         "SKY": None,
         "TMN": 12.0,
     }
-    assert {str(item.category): item.raw["fcstValue"] for item in forecast}["TMP"] == "-999"
+    assert {enum_value(item.category): item.raw["fcstValue"] for item in forecast}["TMP"] == "-999"
     timepoint = pivot_forecast_items(forecast)[0]
     assert timepoint.value("TMP") is None
     assert timepoint.value("TMN") == 12.0
