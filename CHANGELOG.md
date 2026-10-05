@@ -13,6 +13,22 @@
 
 ### 수정
 
+- 단기예보 Missing 센티널(활용가이드: `+900` 이상·`-900` 이하)이 측정값으로 실리던 문제 수정.
+  관측이 없는 격자의 `getUltraSrtNcst`가 `REH/VEC -998`, `RN1/WSD/UUU/VVV -998.9`,
+  `T1H -999`를 돌려주면 `WeatherSnapshot.humidity == -998`, `temperature == -999.0`처럼
+  그대로 들어갔다. 이제 `WeatherSnapshot`의 `temperature`/`humidity`/`wind_speed`/
+  `wind_direction`/`precipitation`과 `ForecastItem.value`/`BeachForecastItem.value`
+  (`ForecastTimepoint.values`)는 Missing이면 `None`이다. 원문은 `raw`에 남는다.
+  - 새 public helper `kma.is_missing(value)`와 `kma.KMA_MISSING_ABS_THRESHOLD`(`Decimal("900")`).
+    `None`/빈 문자열/공백과 유한한 `abs(v) >= 900`이면 `True`, 숫자가 아닌 라벨과
+    `NaN`/`Infinity`는 `False`(센티널이 아니며 유효성은 호출자 몫).
+  - 타입 변경: `ForecastItem.value`/`BeachForecastItem.value`는 `str | float | None`,
+    `ForecastTimepoint.values`는 `dict[str, str | float | None]`. 빈 `fcstValue`도 이제 `""` 대신 `None`.
+    빈 `RN1` 관측은 `0.0` 대신 `None`(관측 없음은 강수 0이 아니다).
+  - 적용하지 않은 필드: ASOS 일·시간 자료(기압 `pa`/`ps`는 정상값이 900 hPa를 넘는다, 별도 서비스),
+    해수욕장 파고·수온·조위(`tilevel`은 cm 단위로 900을 넘을 수 있다, 별도 관측망), 격자 `nx`/`ny`.
+    공용 `float_or_none`/`int_or_none`은 그대로 두고 단기예보 전용 `kma_value_or_none`/
+    `kma_int_or_none`을 추가해 해당 필드에만 쓴다.
 - `getUltraSrtNcst`/`getUltraSrtFcst`/`getVilageFcst` 응답이 요청한 페이지 하나를 넘으면
   `KmaClient._fetch_items()`가 재시도 불가 `KmaParseError("KMA response has more items than
   the requested page size")`로 즉시 실패하던 문제 수정. 단기예보(`getVilageFcst`)는 3일치를

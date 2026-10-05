@@ -42,6 +42,7 @@ from .exceptions import (
 from .grid import kma_grid_to_wgs84, to_grid, to_latlon, wgs84_to_kma_grid
 from .locations import GridPoint, LatLon, normalize_location
 from .metadata import ResponseMetadata, make_cache_key, sanitize_request_params
+from .missing import KMA_MISSING_ABS_THRESHOLD, is_missing
 from .models import (
     AsosDailyItem,
     AsosHourlyItem,
@@ -103,6 +104,7 @@ __all__ = [
     "KmaRequestError",
     "KmaServerError",
     "KMA_DATA_GOKR_DATASETS",
+    "KMA_MISSING_ABS_THRESHOLD",
     "LatLon",
     "MidForecastItem",
     "ObservedPrecipitationType",
@@ -117,6 +119,7 @@ __all__ = [
     "api_catalog",
     "apihub_endpoint_catalog",
     "debug_error",
+    "is_missing",
     "iter_pages",
     "jsonable",
     "kma_grid_to_wgs84",

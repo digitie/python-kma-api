@@ -57,7 +57,7 @@ class ForecastItem(kmaModel):
     nx: int
     ny: int
     category: WeatherCategory | str
-    value: str | float
+    value: str | float | None
     label: str | None
     raw: dict[str, Any] = Field(default_factory=dict)
     metadata: ResponseMetadata | None = None
@@ -98,13 +98,19 @@ class ForecastItem(kmaModel):
 
 
 class ForecastTimepoint(kmaModel):
-    """예보 row를 `forecast_at` 기준으로 피벗한 시간대별 예보 묶음."""
+    """예보 row를 `forecast_at` 기준으로 피벗한 시간대별 예보 묶음.
+
+    `values`에 key가 없으면 그 category row가 응답에 없었다는 뜻이다. key가 있고
+    값이 ``None``이면 row는 있었지만 값이 비었거나 KMA Missing 센티널
+    (``abs(v) >= 900``, `kma.is_missing`)이었다는 뜻이다. 원문은 `raw_items`에 남는다.
+    `value()`는 두 경우 모두 ``None``을 돌려주므로, 구분하려면 ``category in values``를 본다.
+    """
 
     base_at: datetime | None = None
     forecast_at: datetime
     nx: int
     ny: int
-    values: dict[str, str | float] = Field(default_factory=dict)
+    values: dict[str, str | float | None] = Field(default_factory=dict)
     labels: dict[str, str] = Field(default_factory=dict)
     units: dict[str, str] = Field(default_factory=dict)
     raw_items: list[dict[str, Any]] = Field(default_factory=list)
@@ -160,7 +166,7 @@ class BeachForecastItem(kmaModel):
     forecast_at: datetime
     beach_num: str
     category: WeatherCategory | str
-    value: str | float
+    value: str | float | None
     label: str | None
     nx: int | None = None
     ny: int | None = None
