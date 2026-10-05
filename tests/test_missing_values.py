@@ -17,8 +17,10 @@ import pytest
 
 import kma
 from kma import is_missing
+from kma._parsing import kma_int_or_none
 from kma.client import KmaClient
 from kma.codes import normalize_value
+from kma.datagokr import DataGoKrClient
 from kma.enums import enum_value
 from kma.time_utils import KST
 from kma.timeline import pivot_forecast_items
@@ -251,8 +253,87 @@ def test_is_missing_false(value: object) -> None:
     assert is_missing(value) is False  # type: ignore[arg-type]
 
 
-def test_is_missing_is_public_and_documented() -> None:
-    assert "is_missing" in kma.__all__
+def test_is_missing_is_exported_from_the_package_root() -> None:
+    assert {"is_missing", "KMA_MISSING_ABS_THRESHOLD"} <= set(kma.__all__)
     assert kma.is_missing is is_missing
-    assert is_missing.__doc__ and "900" in is_missing.__doc__
     assert kma.KMA_MISSING_ABS_THRESHOLD == Decimal("900")
+
+
+def test_is_missing_does_not_overflow_on_a_huge_exponent() -> None:
+    # abs() would apply the Decimal context (Emax 999999) and raise Overflow.
+    assert is_missing("1e1000000") is True
+    assert is_missing("-1e1000000") is True
+    assert is_missing(Decimal("1e1000000")) is True
+
+
+def test_is_missing_does_not_round_a_value_just_below_the_threshold() -> None:
+    # 33 significant digits: abs() would round it to 900 at the default 28-digit precision.
+    assert is_missing("899.99999999999999999999999999999") is False
+    assert is_missing("-899.99999999999999999999999999999") is False
+    assert is_missing(Decimal("899.99999999999999999999999999999")) is False
+
+
+@pytest.mark.parametrize("value", ["NaN", "nan", "Infinity", "-Infinity", "inf", math.nan, math.inf])
+def test_kma_int_or_none_returns_none_for_non_finite_values(value: object) -> None:
+    assert kma_int_or_none(value) is None
+
+
+async def test_now_with_a_non_finite_humidity_does_not_raise() -> None:
+    items = [_ncst("T1H", "18.4"), _ncst("REH", "NaN"), _ncst("VEC", "Infinity")]
+    client = KmaClient("decoded-key", session=_Session(_payload(items)))
+
+    snapshot = await client.now(nx=60, ny=127, when=_WHEN)
+
+    assert snapshot.temperature == 18.4
+    assert snapshot.humidity is None
+    assert snapshot.wind_direction is None
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+async def test_now_reports_a_blank_rn1_as_unknown_not_as_no_rain(blank: str) -> None:
+    items = [_ncst("T1H", "18.4"), _ncst("RN1", blank), _ncst("PTY", "0")]
+    client = KmaClient("decoded-key", session=_Session(_payload(items)))
+
+    snapshot = await client.now(nx=60, ny=127, when=_WHEN)
+
+    assert snapshot.precipitation is None
+    assert snapshot.raw["by_category"]["RN1"] == blank
+
+
+def _beach(category: str, value: str) -> dict[str, Any]:
+    return {
+        "beachNum": "1",
+        "baseDate": "20261005",
+        "baseTime": "1400",
+        "category": category,
+        "fcstDate": "20261005",
+        "fcstTime": "1500",
+        "fcstValue": value,
+        "nx": "51",
+        "ny": "124",
+    }
+
+
+@pytest.mark.parametrize("operation", ["beach_forecast", "beach_ultra_short_forecast"])
+async def test_beach_forecast_reports_missing_sentinels_as_none(operation: str) -> None:
+    items = [
+        _beach("TMP", "-999"),
+        _beach("WAV", "-998.9"),
+        _beach("POP", "900"),
+        _beach("SKY", "-998"),
+        _beach("REH", "65"),
+    ]
+    client = DataGoKrClient("decoded-key", session=_Session(_payload(items)))
+
+    rows = await getattr(client, operation)(
+        beach_num=1, base_date="20261005", base_time="1400"
+    )
+
+    assert {enum_value(row.category): row.value for row in rows} == {
+        "TMP": None,
+        "WAV": None,
+        "POP": None,
+        "SKY": None,
+        "REH": 65.0,
+    }
+    assert {enum_value(row.category): row.raw["fcstValue"] for row in rows}["WAV"] == "-998.9"
