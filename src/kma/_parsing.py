@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from .missing import is_missing
 
 
@@ -37,10 +39,13 @@ def kma_value_or_none(value: object) -> float | None:
 
 
 def kma_int_or_none(value: object) -> int | None:
-    """`kma_value_or_none`의 정수판(습도 ``REH``, 풍향 ``VEC``)."""
+    """`kma_value_or_none`의 정수판(습도 ``REH``, 풍향 ``VEC``).
+
+    ``NaN``/``Infinity``는 정수로 바꿀 수 없으므로 예외 대신 ``None``을 반환한다.
+    """
 
     number = kma_value_or_none(value)
-    if number is None:
+    if number is None or not math.isfinite(number):
         return None
     return int(number)
 

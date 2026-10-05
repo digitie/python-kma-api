@@ -59,4 +59,6 @@ def is_missing(value: str | float | Decimal | None) -> bool:
             number = Decimal(text)
         except (InvalidOperation, ValueError):
             return False
-    return number.is_finite() and abs(number) >= KMA_MISSING_ABS_THRESHOLD
+    # copy_abs() is exact: abs() would apply the Decimal context, raising Overflow
+    # on "1e1000000" and rounding 33-digit values just below 900 up to 900.
+    return number.is_finite() and number.copy_abs() >= KMA_MISSING_ABS_THRESHOLD
