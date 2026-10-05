@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from .enums import KmaEndpoint, WeatherCategory, enum_value
+from .missing import is_missing
 
 SKY_LABELS = {
     "1": "맑음",
@@ -81,9 +82,17 @@ def label_for(
     return None
 
 
-def normalize_value(category: str | WeatherCategory, value: object) -> str | float:
+def normalize_value(category: str | WeatherCategory, value: object) -> str | float | None:
+    """단기예보 ``fcstValue``를 category에 맞게 정규화합니다.
+
+    값이 없거나(빈 문자열·공백) 활용가이드 Missing 센티널(``abs(v) >= 900``)이면
+    category와 무관하게 ``None``을 반환합니다. 원문은 호출자가 ``raw``에 보존합니다.
+    """
+
     category_code = enum_value(category)
     raw = "" if value is None else str(value).strip()
+    if is_missing(raw):
+        return None
     if category_code in {WeatherCategory.PRECIPITATION.value, WeatherCategory.SNOW.value}:
         return raw
     if category_code in _NUMERIC_CATEGORIES:

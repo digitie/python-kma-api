@@ -21,8 +21,8 @@ from ._http import (
     raise_for_kma_xml_error_body,
     validate_async_session,
 )
-from ._parsing import float_or_none as _float_or_none
-from ._parsing import int_or_none as _int_or_none
+from ._parsing import kma_int_or_none as _kma_int_or_none
+from ._parsing import kma_value_or_none as _kma_value_or_none
 from ._ratelimit import AsyncTokenBucket
 from ._redact import credential_values, redact_exception
 from .codes import label_for, normalize_value, parse_amount
@@ -31,6 +31,7 @@ from .exceptions import KmaError, KmaParseError
 from .grid import validate_grid
 from .locations import LocationInput, normalize_location
 from .metadata import ResponseMetadata, make_response_metadata
+from .missing import is_missing
 from .models import ForecastItem, WeatherSnapshot
 from .pagination import has_next_page
 from .time_utils import (
@@ -156,11 +157,18 @@ class KmaClient:
             observed_at=parse_kma_datetime(base_date, base_time),
             nx=grid_x,
             ny=grid_y,
-            temperature=_float_or_none(by_category.get(WeatherCategory.CURRENT_TEMPERATURE.value)),
-            humidity=_int_or_none(by_category.get(WeatherCategory.HUMIDITY.value)),
-            wind_speed=_float_or_none(by_category.get(WeatherCategory.WIND_SPEED.value)),
-            wind_direction=_int_or_none(by_category.get(WeatherCategory.WIND_DIRECTION.value)),
-            precipitation=parse_amount(by_category.get(WeatherCategory.ONE_HOUR_RAIN.value)),
+            # 활용가이드: |v| >= 900은 Missing(관측 없음) -- 측정값으로 싣지 않는다.
+            temperature=_kma_value_or_none(
+                by_category.get(WeatherCategory.CURRENT_TEMPERATURE.value)
+            ),
+            humidity=_kma_int_or_none(by_category.get(WeatherCategory.HUMIDITY.value)),
+            wind_speed=_kma_value_or_none(by_category.get(WeatherCategory.WIND_SPEED.value)),
+            wind_direction=_kma_int_or_none(
+                by_category.get(WeatherCategory.WIND_DIRECTION.value)
+            ),
+            precipitation=_observed_amount(
+                by_category.get(WeatherCategory.ONE_HOUR_RAIN.value)
+            ),
             sky_label=label_for(
                 WeatherCategory.SKY,
                 by_category.get(WeatherCategory.SKY.value),
@@ -559,6 +567,14 @@ def _page_items(body: Mapping[str, Any], endpoint_name: str) -> list[Mapping[str
             retryable=False,
         )
     return items
+
+
+def _observed_amount(value: object) -> float | None:
+    """``RN1`` 관측값. Missing 센티널·빈 값이면 ``None``, 그 밖에는 `parse_amount`."""
+
+    if value is not None and is_missing(str(value)):
+        return None
+    return parse_amount(value)
 
 
 def _forecast_item(

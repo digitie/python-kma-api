@@ -518,7 +518,7 @@ class ForecastItem(BaseModel):
     nx: int
     ny: int
     category: WeatherCategory | str
-    value: str | float
+    value: str | float | None
     label: str | None
 
     @property
@@ -536,7 +536,7 @@ class ForecastItem(BaseModel):
 
 `ForecastItem.category`는 알려진 category일 때 `WeatherCategory` enum으로 들어갑니다. `WeatherCategory`는 `str` 기반 enum이라 `"TMP"` 같은 원문 문자열과 비교할 수 있고 JSON 직렬화도 자연스럽게 동작합니다. 알 수 없는 새 category는 원문 문자열을 보존합니다.
 
-`ForecastItem.value`는 숫자로 안전하게 해석되는 값만 `float`가 됩니다. `PCP`, `SNO` 범주 문자열은 원문을 보존합니다.
+`ForecastItem.value`는 숫자로 안전하게 해석되는 값만 `float`가 됩니다. `PCP`, `SNO` 범주 문자열은 원문을 보존합니다. 값이 비었거나 Missing 센티널(아래 "Missing 값")이면 `None`이며, 원문은 `raw["fcstValue"]`에 남습니다.
 
 ### `ForecastTimepoint`
 
@@ -621,6 +621,7 @@ KMA API는 대부분의 값을 문자열로 반환합니다. `kma`는 사용자�
 | `SKY`, `PTY` 코드 | `str` 값 + `label` | `"1"` -> `"맑음"` |
 | `PCP`, `SNO` 범주 | `str` | `"1.0mm 미만"` 보존 |
 | 빈 값 또는 파싱 불가 값 | `None` 또는 원문 | 모델별로 안전하게 처리 |
+| 단기예보 Missing 센티널(`abs(v) >= 900`) | `None` | `"-998.9"` -> `None` |
 
 강수량/적설량 범주를 대표값으로 바꾸고 싶을 때는 `kma.codes.parse_amount()`를 사용할 수 있습니다.
 
@@ -631,6 +632,36 @@ parse_amount("1.0mm 미만")   # 0.5
 parse_amount("30.0~50.0mm") # 40.0
 parse_amount("강수없음")     # 0.0
 ```
+
+### Missing 값
+
+기상청 단기예보 조회서비스 활용가이드는 관측·예보값이 `+900` 이상 또는 `-900` 이하이면
+**Missing**(관측장비 없음·결측)으로 정의합니다. 실제로 관측이 없는 격자의 `getUltraSrtNcst`는
+`REH/VEC -998`, `RN1/WSD/UUU/VVV -998.9`, `T1H -999`를 돌려줍니다. `kma`는 이 값을 측정값으로
+싣지 않습니다.
+
+- `WeatherSnapshot`의 `temperature`/`humidity`/`wind_speed`/`wind_direction`/`precipitation`은
+  Missing이면 `None`입니다.
+- `ForecastItem.value`/`BeachForecastItem.value`/`ForecastTimepoint.values`는 Missing이거나 빈 값이면
+  `None`입니다.
+- 원문 문자열은 `raw`에 그대로 남습니다.
+
+원문 `obsrValue`/`fcstValue`를 직접 다룬다면 `kma.is_missing()`을 쓰세요.
+
+```python
+from kma import is_missing
+
+is_missing("-998.9")      # True  (센티널)
+is_missing("  ")          # True  (빈 값)
+is_missing(None)          # True
+is_missing("-899.9")      # False
+is_missing("1.0mm 미만")  # False (라벨은 값이 있는 것)
+is_missing("NaN")         # False (센티널 아님 -- 유효성은 호출자가 판단)
+```
+
+이 규칙은 단기예보 계열(`getUltraSrtNcst`/`getUltraSrtFcst`/`getVilageFcst`, 같은 category 체계의
+해수욕장 예보)의 값에만 적용합니다. ASOS 기압(`pa`/`ps`, hPa), 해수욕장 조위(`tilevel`),
+격자·지점 번호처럼 정상값이 900을 넘을 수 있는 필드는 그대로 둡니다.
 
 ---
 
