@@ -214,3 +214,8 @@ data.go.kr의 KMA REST API는 `http://apis.data.go.kr/1360000/{service}/{operati
 - **범용 클라이언트까지 포함하면 data.go.kr 임의 service/operation과 APIHub `/api/...` path를 호출할 수 있습니다.**
 - **APIHub 470개는 endpoint별 함수 이름을 제공하지만, 모든 응답을 endpoint별 Pydantic 모델로 강제 변환하지는 않습니다.**
 - **위치/코드 타입 계층은 endpoint 개수를 늘리는 항목은 아니며, 외부 프로그램에서 좌표계와 category 문자열을 안정적으로 다루기 위한 public API입니다.**
+
+
+### typed pagination receipt (2026-10-23)
+
+기존 endpoint 개수는 그대로다. 공개 모델 `PaginationReceipt`와 `ResponseMetadata.pagination`을 가산해 typed 조회의 원천 총수·실제 행 수·페이지 수·완결 여부를 제공한다. metadata 없는 레거시는 complete=False, 명시 불일치는 KmaParseError다. 예보 빈 list에는 item metadata가 없으며 receipt만으로 source 전체 권위/의미 유일성은 보장하지 않는다.

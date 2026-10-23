@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import parse_qsl, urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 _CREDENTIAL_PARAM_NAMES = {
     "apikey",
@@ -24,6 +24,29 @@ _CREDENTIAL_PARAM_NAMES = {
 _CREDENTIAL_TEXT_RE = re.compile(
     r"(?i)\b(api_key|apiKey|auth_key|authKey|key|service_key|serviceKey)=([^&\s]+)"
 )
+
+
+class PaginationReceipt(BaseModel):
+    """typed 조회의 페이지 순서와 원천 totalCount 일치 증거다.
+
+    항목 의미/유일성이나 downstream의 전체 데이터셋 권위를 대신하지 않는다.
+    metadata가 생략된 응답은 complete=False로만 표시한다.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    expected_total_count: int | None = Field(default=None, ge=0)
+    received_item_count: int = Field(ge=0)
+    page_count: int = Field(ge=1)
+    complete: bool
+
+    @model_validator(mode="after")
+    def _complete_count_matches(self) -> PaginationReceipt:
+        if self.complete and (
+            self.expected_total_count is None
+            or self.received_item_count != self.expected_total_count
+        ):
+            raise ValueError("완결 receipt에는 totalCount와 실제 행 수 일치가 필요합니다")
+        return self
 
 
 class ResponseMetadata(BaseModel):
@@ -43,6 +66,7 @@ class ResponseMetadata(BaseModel):
     base_date: str | None = None
     base_time: str | None = None
     reference_time: datetime | None = None
+    pagination: PaginationReceipt | None = None
 
     @field_validator("request_params", mode="before")
     @classmethod

@@ -41,7 +41,7 @@ from .exceptions import (
 )
 from .grid import kma_grid_to_wgs84, to_grid, to_latlon, wgs84_to_kma_grid
 from .locations import GridPoint, LatLon, normalize_location
-from .metadata import ResponseMetadata, make_cache_key, sanitize_request_params
+from .metadata import PaginationReceipt, ResponseMetadata, make_cache_key, sanitize_request_params
 from .missing import KMA_MISSING_ABS_THRESHOLD, is_missing
 from .models import (
     AsosDailyItem,
@@ -108,6 +108,7 @@ __all__ = [
     "LatLon",
     "MidForecastItem",
     "ObservedPrecipitationType",
+    "PaginationReceipt",
     "ResponseMetadata",
     "SENSITIVE_KEYS",
     "SkyCode",
