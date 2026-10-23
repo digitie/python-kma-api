@@ -615,19 +615,16 @@ async def test_pagination_gives_up_after_the_page_cap_rather_than_looping_foreve
         def __init__(self) -> None:
             self.calls = 0
 
-        async def get(
-            self, url: str, *, params: dict[str, Any], timeout: float
-        ) -> FakeResponse:
+        async def get(self, url: str, *, params: dict[str, Any], timeout: float) -> FakeResponse:
             self.calls += 1
             page_no = int(params["pageNo"])
-            # totalCount always claims one more row than this page reports,
-            # so has_next_page is true no matter how many pages are fetched.
+            # 상한보다 큰 고정 totalCount로, 일관성 오류가 아닌 실제 페이지 상한을 검증한다.
             return FakeResponse(
                 _paged_payload(
                     [{"category": "T1H", "obsrValue": "18.4"}],
                     page_no=page_no,
                     num_of_rows=1,
-                    total_count=page_no + 1,
+                    total_count=1000000,
                 )
             )
 

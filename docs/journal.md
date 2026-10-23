@@ -1,5 +1,12 @@
 # JOURNAL — 작업 일지
 
+## 2026-10-23 — typed 페이지 완결 receipt (구현·검증 중)
+
+- Weather 성공 export가 부분 KMA 응답을 전체 집합으로 오인하지 않도록 `ResponseMetadata.pagination`과 공개 frozen `PaginationReceipt`를 추가한다. typed now/forecast는 페이지 echo·고정 totalCount/numOfRows·페이지별/누적 실제 행 수를 검증한다. 불일치는 typed KmaParseError이며 metadata 생략 레거시는 값을 유지하되 complete=False다.
+- 첫 NO_DATA03은 기존 정상 빈 결과를 유지하며 now snapshot에는 명시0 receipt가 남는다. 중간 페이지03은 부분 성공으로 반환하지 않는다. 빈 예보 list에는 item metadata가 없으므로 그것만으로 정상0 완결을 승인하지 않는다.
+- pagination complete는 원천 페이지/행 수 증거이며 항목 의미·유일성·발표 revision·downstream 전체 scope 권위를 대신하지 않는다. Weather의 collector/3B/실제API 배선·운영 적용은 별도다.
+- Windows Python3.10 집중38 PASS·전체263 PASS/12 live deselected/14 subtests, Ruff·mypy26개파일 PASS. CI·2리뷰·live는 진행 중이다. 기존 로컬 .venv에 pytest-asyncio가 없어 거절된 환경 실패를 별도 전용 dev venv로 해소했고 기존 .venv/미커밋 .gitignore/.claude는 변경하지 않았다.
+
 ## 2026-09-14 — 비동기 전용 API와 공통 TPS
 
 - 원격 최신 main 기준으로 Kma/DataGoKr/ApiHub와 생성 endpoint 470개를 비동기로 통합했다.

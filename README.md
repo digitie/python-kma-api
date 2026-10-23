@@ -76,7 +76,7 @@ Korea Meteorological Administration(KMA, 기상청) 공공데이터포털과 API
 | 인증키 로딩 | `api_key_for_gateway`, `env_names_for_gateway`, `load_local_env` |
 | 위치 값 객체 | `LatLon`, `GridPoint`, `normalize_location` |
 | 좌표 변환 | `to_grid`, `to_latlon`, `wgs84_to_kma_grid`, `kma_grid_to_wgs84` |
-| 응답 모델 | `WeatherSnapshot`, `ForecastItem`, `ForecastTimepoint`, `MidForecastItem`, `DataGoKrItem`, `BeachForecastItem`, `BeachWaveHeight`, `BeachWaterTemperature`, `BeachTideItem`, `BeachSunTime`, `ResponseMetadata` |
+| 응답 모델 | `WeatherSnapshot`, `ForecastItem`, `ForecastTimepoint`, `MidForecastItem`, `DataGoKrItem`, `BeachForecastItem`, `BeachWaveHeight`, `BeachWaterTemperature`, `BeachTideItem`, `BeachSunTime`, `ResponseMetadata`, `PaginationReceipt` |
 | timeline/pagination/cache | `pivot_forecast_items`, `has_next_page`, `next_page_no`, `iter_pages`, `make_cache_key`, `base_available_at`, `cache_expire_at`, `latest_mid_fcst_base`, `latest_mid_fcst_time`, `sanitize_request_params` |
 | enum/라벨 | `KmaEndpoint`, `WeatherCategory`, `SkyCode`, `ObservedPrecipitationType`, `ForecastPrecipitationType`, `label_for`, `unit_for`, `parse_amount` |
 | 예외 | `KmaError`, `KmaAuthError`, `KmaRequestError`, `KmaServerError`, `KmaParseError` |
@@ -935,3 +935,10 @@ KMA 원천 데이터의 저작권과 이용조건은 기상청 및 공공데이�
 ## 변경 이력
 
 - `0.1.0`: 초기 패키지 구조, KMA 단기예보 클라이언트, 좌표 변환, 시간 계산, 문서 보강.
+
+
+### typed 응답의 페이지 완결 증거
+
+`now()`의 `snapshot.metadata.pagination` 또는 비어 있지 않은 예보 item의 `metadata.pagination`은 `PaginationReceipt`다. `expected_total_count`, `received_item_count`, `page_count`, `complete`를 제공한다. 제공자가 모든 페이지에 일관된 `pageNo/numOfRows/totalCount`를 명시하고 실제 행 수가 일치할 때만 `complete=True`다. 수치·페이지 순서·중간 빈 응답 불일치는 `KmaParseError`로 반환하여 부분 집합을 정상 전체로 내보내지 않는다. metadata가 생략된 기존 응답은 기존 값을 반환하지만 `complete=False`다.
+
+첫 `NO_DATA(03)`는 기존 정상 빈 결과이고 now snapshot에는 명시0 receipt가 남는다. 예보가 빈 list이면 item metadata도 없으므로 빈 list만으로 정상0 완결을 승인하지 않는다. 페이지 완결은 항목 유일성·의미·관측/예보 revision·downstream 데이터셋 전체 권위를 보장하지 않는다. `collected_at`은 실제 조회 시각이며 데이터 발표 revision으로 쓰지 않는다.

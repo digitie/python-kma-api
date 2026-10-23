@@ -1,5 +1,9 @@
 # 변경 이력
 
+## 2026-10-23 — typed pagination receipt
+
+- `ResponseMetadata.pagination`/`PaginationReceipt`로 페이지 완결 정보를 가산한다. 제공자 metadata/행 수 불일치와 중간 NO_DATA의 부분 성공을 거부한다. metadata 생략 응답의 기존 값·첫 NO_DATA03 빈 결과는 유지한다.
+
 `python-kma-api`의 주요 변경 사항을 기록합니다.
 
 ## 0.1.0 - 미배포

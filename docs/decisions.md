@@ -45,3 +45,8 @@
 다른 API 라이브러리와 같은 AsyncTokenBucket 로직을 적용해 재시도·리다이렉트도 합산 제한한다.
 파싱·모델·카탈로그와 CLI/UI 진입점은 일반 함수로 유지한다. 기존 동기 소비자는 await,
 async for, async with로 전환해야 한다. 자세한 설정은 async-tps.md에 기록한다.
+
+
+## ADR-007: typed pagination receipt와 불일치 거부 (2026-10-23)
+
+전체 페이지 순회 종료를 완결 증거로 사용하지 않는다. typed 조회에 공개 `PaginationReceipt`를 가산하고 페이지 번호·총수/크기 일관성·실제 행 수를 검증한다. 명시 metadata가 틀리면 typed parse 오류이며, metadata가 없는 레거시는 값 호환을 유지하되 complete=False다. NO_DATA03 정상 빈 계약은 유지하고 중간03의 부분 집합은 거부한다. receipt는 transport pagination의 증거이며 데이터 의미/유일성·downstream authoritative replacement는 소비자가 별도로 검증한다. 기존 서비스키·async·TPS·endpoint·시각 유틸은 바꾸지 않는다.

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, NoReturn
 
 import httpx
 
@@ -30,7 +30,7 @@ from .enums import KmaEndpoint, WeatherCategory, coerce_category, enum_value
 from .exceptions import KmaError, KmaParseError
 from .grid import validate_grid
 from .locations import LocationInput, normalize_location
-from .metadata import ResponseMetadata, make_response_metadata
+from .metadata import PaginationReceipt, ResponseMetadata, make_response_metadata
 from .missing import is_missing
 from .models import ForecastItem, WeatherSnapshot
 from .pagination import has_next_page
@@ -56,6 +56,7 @@ _MAX_FETCH_PAGES = 20
 class _KmaBody:
     body: Mapping[str, Any]
     metadata: ResponseMetadata
+    no_data: bool = False
 
 
 @dataclass(frozen=True)
@@ -163,12 +164,8 @@ class KmaClient:
             ),
             humidity=_kma_int_or_none(by_category.get(WeatherCategory.HUMIDITY.value)),
             wind_speed=_kma_value_or_none(by_category.get(WeatherCategory.WIND_SPEED.value)),
-            wind_direction=_kma_int_or_none(
-                by_category.get(WeatherCategory.WIND_DIRECTION.value)
-            ),
-            precipitation=_observed_amount(
-                by_category.get(WeatherCategory.ONE_HOUR_RAIN.value)
-            ),
+            wind_direction=_kma_int_or_none(by_category.get(WeatherCategory.WIND_DIRECTION.value)),
+            precipitation=_observed_amount(by_category.get(WeatherCategory.ONE_HOUR_RAIN.value)),
             sky_label=label_for(
                 WeatherCategory.SKY,
                 by_category.get(WeatherCategory.SKY.value),
@@ -288,20 +285,13 @@ class KmaClient:
         nx: int,
         ny: int,
     ) -> _FetchedItems:
-        """Fetch every page of one grid's response.
-
-        `getVilageFcst` alone carries up to a dozen categories over a 3-day,
-        3-hour-step forecast, and the item count that produces varies with how
-        many of those categories the office actually published for this base
-        time -- comfortably under our 1,000-row page most of the time, but not
-        always. Treating a second page as a hard, non-retryable parse error
-        (the previous behaviour here) turned an ordinary large response into a
-        failed run instead of one extra request, silently for however many
-        consecutive base times stayed over the line.
-        """
+        """한 격자의 모든 페이지를 모으고 명시한 원천 개수와 대조한다."""
         endpoint_name = enum_value(endpoint)
         items: list[Mapping[str, Any]] = []
         metadata: ResponseMetadata | None = None
+        expected_total: int | None = None
+        expected_page_size: int | None = None
+        complete = True
         page_no = 1
         while True:
             response = await self._request_with_metadata(
@@ -315,26 +305,55 @@ class KmaClient:
                 },
             )
             if metadata is None:
-                # The paginated request differs from page to page only in
-                # pageNo; base_date/base_time/nx/ny -- everything this
-                # metadata actually records -- stay fixed, so the first page
-                # describes the whole fetch.
                 metadata = response.metadata
-            items.extend(_page_items(response.body, endpoint_name))
+            page_items = _page_items(response.body, endpoint_name)
+            if response.no_data:
+                # 명시 NO_DATA(03)는 정상 빈 결과다. 중간 페이지 NO_DATA는 전체 일관성 오류다.
+                if page_no != 1 or items:
+                    _pagination_error(endpoint_name, "중간 페이지가 NO_DATA로 바뀌었습니다")
+                expected_total = 0
+                break
+            total = _pagination_integer(response.body, "totalCount", endpoint_name, minimum=0)
+            echoed_page = _pagination_integer(response.body, "pageNo", endpoint_name, minimum=1)
+            page_size = _pagination_integer(response.body, "numOfRows", endpoint_name, minimum=1)
+            if echoed_page is not None and echoed_page != page_no:
+                _pagination_error(endpoint_name, "응답 pageNo가 요청과 다릅니다")
+            if total is None or echoed_page is None or page_size is None:
+                complete = False
+            if total is not None:
+                if expected_total is not None and expected_total != total:
+                    _pagination_error(endpoint_name, "페이지 사이 totalCount가 달라졌습니다")
+                expected_total = total
+            if page_size is not None:
+                if expected_page_size is not None and expected_page_size != page_size:
+                    _pagination_error(endpoint_name, "페이지 사이 numOfRows가 달라졌습니다")
+                if len(page_items) > page_size:
+                    _pagination_error(endpoint_name, "응답 행 수가 numOfRows를 넘었습니다")
+                expected_page_size = page_size
+            if total is not None and page_size is not None:
+                expected_rows = min(page_size, max(0, total - (page_no - 1) * page_size))
+                if len(page_items) != expected_rows:
+                    _pagination_error(
+                        endpoint_name, "현재 페이지 행 수가 totalCount/numOfRows와 다릅니다"
+                    )
+            items.extend(page_items)
+            if expected_total is not None and len(items) > expected_total:
+                _pagination_error(endpoint_name, "실제 행 수가 totalCount를 넘었습니다")
             if not has_next_page(response.body):
                 break
             page_no += 1
             if page_no > _MAX_FETCH_PAGES:
-                raise KmaParseError(
-                    f"KMA response did not finish paginating after "
-                    f"{_MAX_FETCH_PAGES} pages",
-                    provider="data.go.kr",
-                    endpoint=endpoint_name,
-                    failure_kind="parse",
-                    retryable=False,
-                )
+                _pagination_error(endpoint_name, "페이지 수집 상한에 도달했습니다")
         assert metadata is not None
-        return _FetchedItems(items, metadata)
+        if expected_total is not None and len(items) != expected_total:
+            _pagination_error(endpoint_name, "실제 행 수와 totalCount가 일치하지 않습니다")
+        receipt = PaginationReceipt(
+            expected_total_count=expected_total,
+            received_item_count=len(items),
+            page_count=page_no,
+            complete=complete and expected_total is not None,
+        )
+        return _FetchedItems(items, metadata.model_copy(update={"pagination": receipt}))
 
     async def _request(
         self,
@@ -505,7 +524,7 @@ def _parse_kma_body(response: Any, endpoint_name: str, metadata: ResponseMetadat
             endpoint=endpoint_name,
             label="KMA",
         ):
-            return _KmaBody(empty_kma_body(), metadata)
+            return _KmaBody(empty_kma_body(), metadata, no_data=True)
         raise KmaParseError(
             "KMA response was not valid JSON in the expected shape",
             provider="data.go.kr",
@@ -528,7 +547,9 @@ def _parse_kma_body(response: Any, endpoint_name: str, metadata: ResponseMetadat
     message = str(header.get("resultMsg", ""))
     if code == NO_DATA_RESULT_CODE:
         # NO_DATA는 "조회 결과 없음" — 오류가 아니라 정상적인 빈 결과다.
-        return _KmaBody(empty_kma_body(body if isinstance(body, Mapping) else None), metadata)
+        return _KmaBody(
+            empty_kma_body(body if isinstance(body, Mapping) else None), metadata, no_data=True
+        )
     if code != "00":
         _raise_for_result_code(code, message, endpoint=endpoint_name)
     if not isinstance(body, Mapping):
@@ -541,6 +562,42 @@ def _parse_kma_body(response: Any, endpoint_name: str, metadata: ResponseMetadat
             retryable=False,
         )
     return _KmaBody(body, metadata)
+
+
+def _pagination_error(endpoint: str, message: str) -> NoReturn:
+    raise KmaParseError(
+        "KMA pagination: " + message,
+        provider="data.go.kr",
+        endpoint=endpoint,
+        failure_kind="parse",
+        retryable=False,
+    )
+
+
+def _pagination_integer(
+    body: Mapping[str, Any],
+    name: str,
+    endpoint: str,
+    *,
+    minimum: int,
+) -> int | None:
+    value = body.get(name)
+    if value is None:
+        return None
+    if type(value) is int:
+        parsed = value
+    elif (
+        isinstance(value, str)
+        and len(value.strip()) <= 20
+        and value.strip().isascii()
+        and value.strip().isdigit()
+    ):
+        parsed = int(value.strip())
+    else:
+        _pagination_error(endpoint, "페이지 metadata가 정수가 아닙니다: " + name)
+    if parsed < minimum:
+        _pagination_error(endpoint, "페이지 metadata 범위가 잘못됐습니다: " + name)
+    return parsed
 
 
 def _page_items(body: Mapping[str, Any], endpoint_name: str) -> list[Mapping[str, Any]]:
@@ -566,6 +623,8 @@ def _page_items(body: Mapping[str, Any], endpoint_name: str) -> list[Mapping[str
             failure_kind="parse",
             retryable=False,
         )
+    if any(not isinstance(item, Mapping) for item in items):
+        _pagination_error(endpoint_name, "items.item에 객체가 아닌 행이 있습니다")
     return items
 
 

@@ -281,3 +281,8 @@ Get-Content -Path docs/repeated-mistakes.md -Encoding UTF8
 ```
 
 **방지 테스트:** 한글이 깨져 보이면 먼저 UTF-8 명시 명령으로 다시 읽고, 파일 자체가 깨졌는지는 diff나 테스트 결과로 확인합니다.
+
+
+## 2026-10-23 — 페이지 반복 종료와 완결을 혼동하지 않는다
+
+증상: 요청 페이지가 끝났어도 실제 rows와 totalCount가 다른 부분 응답을 정상 typed 값으로 반환할 수 있었다. 규칙: echo/고정 metadata와 페이지별·누적 수를 검증하고 공개 receipt에 완결 여부를 남긴다. metadata 생략은 unknown이며 첫 NO_DATA와 중간 NO_DATA를 구분한다. `tests/test_typed_pagination_receipt.py`가 short page·수치/순서 변경·중간03·legacy·민감값 미노출을 검증한다.

@@ -58,7 +58,15 @@ async def test_shared_budget_covers_clients_debug_pagination_retry_and_redirect(
             return httpx.Response(302, headers={"Location": "/resolved"})
         page = int(request.url.params.get("pageNo", 1))
         total = 2 if request.url.path.endswith("/pages") else 1
-        return httpx.Response(200, json=payload(page=page, total=total))
+        # totalCount=1인 typed fixture도 실제1행을 포함해야 완결 검증과 일치한다.
+        return httpx.Response(
+            200,
+            json=payload(
+                page=page,
+                total=total,
+                items=[{"category": "T1H", "obsrValue": "18.4"}],
+            ),
+        )
 
     async with httpx.AsyncClient(
         transport=httpx.MockTransport(handler), follow_redirects=True

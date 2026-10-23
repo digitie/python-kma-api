@@ -348,3 +348,10 @@ label_for(WeatherCategory.PRECIPITATION_TYPE, "4", endpoint=KmaEndpoint.VILAGE_F
 - [ ] `PCP`/`SNO`를 무조건 float로 변환하지 않는다.
 - [ ] `PTY` 매핑은 endpoint-aware로 처리한다.
 - [ ] 실제 네트워크 호출 없는 단위 테스트를 먼저 작성한다.
+
+
+## typed 페이지 일관성과 receipt
+
+`KmaClient.now/forecast_short/forecast`의 내부 수집은 한 격자/base 선택에 대해 일관된 페이지 번호·크기·총건수를 검증한다. 페이지별 예상 행 수와 누적 수가 맞지 않거나 중간 NO_DATA면 `KmaParseError(failure_kind="parse",retryable=False)`다. 기존 페이지 상한을 유지하고 인증·rate limiter·시각 선택은 바꾸지 않는다.
+
+`ResponseMetadata.pagination`의 frozen `PaginationReceipt`는 선언된 totalCount, 실제 수, 페이지 수와 완결 여부를 보존한다. metadata 생략 응답은 기존 호환을 유지하면서 완결로 표시하지 않는다. 첫 NO_DATA03은 명시0 증거이며, 빈 예보 list의 반환형은 그대로라 별도 source 완결 증거 없이 downstream 전체 삭제에 쓰지 않는다. 이 증거만으로 데이터 row의 semantic uniqueness나 source 전체 권위를 승인하지 않는다.
