@@ -346,6 +346,7 @@ KmaError
 | `12` | `KmaRequestError` |
 | `20` | `KmaAuthError` |
 | `22` | `KmaRequestError` |
+| `23` | `KmaRequestError` (`rate_limit`, 재시도 가능) |
 | `30` | `KmaAuthError` |
 | `31` | `KmaAuthError` |
 | `99` | `KmaServerError` |
@@ -355,7 +356,7 @@ KmaError
 ## HTTP 계층 규칙
 
 - session/retry 설정은 `src/kma/_http.py` 한 곳에서 관리합니다.
-- transient GET 실패(`429`, `500`, `502`, `503`, `504`)만 retry합니다.
+- transient GET 실패(`429`, `500`, `502`, `503`, `504`)와 작은 표준 JSON/XML 초당 제한 `23`만 기존 예산 안에서 retry합니다. 일일 한도 `22`는 retry하지 않습니다.
 - 인증 실패를 retry하지 않습니다.
 - 인증키를 로그로 남기지 않습니다.
 - 테스트를 위해 `session=` 주입을 허용합니다.

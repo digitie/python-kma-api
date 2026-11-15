@@ -1,5 +1,12 @@
 # JOURNAL — 작업 일지
 
+## 2026-11-15 — 초당 제한 23의 공통 HTTP 재시도 복구
+
+- 공식 초당 제한 23이 일반 요청 오류·비재시도로 떨어지던 분류를 `rate_limit`·`retryable=True`로 수정했다. JSON/XML의 작은 표준 오류만 기존 단일 HTTP 루프의 토큰·최대 시도·백오프·`Retry-After`에 연결했다. 최종 오류 해석과 인증값 제거는 기존 클라이언트 경계를 유지한다.
+- 일일 quota22·인증·NO_DATA03·알 수 없는 오류는 기존 단일 시도/빈 성공 계약을 유지했다. 정상 header00+기온23은 JSON 해석 1회이고 대형 정상 본문은 추가 JSON/XML 해석 0회다. 새 설정·중첩 재시도·provider 호출은 추가하지 않았다.
+- 새 회귀 43개 중 수정 전 13개가 실제 실패했다. 수정 후 집중 WSL 128개, 전체 오프라인 WSL 및 네트워크 차단 Docker 각각 306개·14 subtests 통과/12 integration 제외를 확인했다. 환경 간 및 집중/전체 수는 합산하지 않는다.
+- 다음 작업은 SDK 변경의 상위 PR/CI 정산과 소비자 고정 SHA 반영이다. 이 작업에서는 설치·운영 배포·커밋·푸시·실 API 부하 검증을 하지 않았다.
+
 ## 2026-10-23 — typed 페이지 완결 receipt (구현·검증 중)
 
 - Weather 성공 export가 부분 KMA 응답을 전체 집합으로 오인하지 않도록 `ResponseMetadata.pagination`과 공개 frozen `PaginationReceipt`를 추가한다. typed now/forecast는 페이지 echo·고정 totalCount/numOfRows·페이지별/누적 실제 행 수를 검증한다. 불일치는 typed KmaParseError이며 metadata 생략 레거시는 값을 유지하되 complete=False다.

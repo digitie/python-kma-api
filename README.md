@@ -744,7 +744,8 @@ KmaError
 | `00` | 정상 | 없음 |
 | `03` | 데이터 없음 (NO_DATA) | 없음 — 빈 결과로 정규화 |
 | `20` | 서비스 접근 거부 | `KmaAuthError` |
-| `22` | 호출 제한 초과 | `KmaRequestError` |
+| `22` | 일일 호출 한도 초과 | `KmaRequestError` (`quota`, 비재시도) |
+| `23` | 초당 호출 한도 초과 | `KmaRequestError` (`rate_limit`, 재시도 가능) |
 | `30` | 등록되지 않은 서비스키 | `KmaAuthError` |
 | `31` | 서비스키 만료 | `KmaAuthError` |
 | `99` | 기타 오류 | `KmaServerError` |
@@ -768,6 +769,12 @@ asyncio.run(main())
 ```
 
 `failure_kind`는 `auth`, `quota`, `rate_limit`, `request`, `server`, `parse`, `network` 중 하나로 채워질 수 있습니다. 기존처럼 `except KmaAuthError`, `except KmaRequestError`로 잡는 코드는 그대로 동작합니다.
+
+HTTP 200으로 오는 작은 표준 JSON/XML `23` 오류 envelope(16KiB 이하)는 기존
+`retries` 예산 안에서 HTTP 429와 같은 토큰·백오프·`Retry-After` 규칙으로 재시도합니다.
+최대 송신 시도는 리다이렉트를 제외하고 `retries + 1`회이며, 최종 실패도 위 분류와
+`result_code="23"`를 유지합니다. `22`·인증 오류·알 수 없는 코드는 추가 재시도하지 않고,
+`03`의 정상 빈 결과 계약은 유지합니다. 정상 대용량 본문은 재시도 판별을 위해 다시 해석하지 않습니다.
 
 ---
 
