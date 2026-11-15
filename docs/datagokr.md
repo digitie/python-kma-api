@@ -356,6 +356,11 @@ DATA_GO_KR_SERVICE_KEY=<data.go.kr decoded service key>
 `KmaRequestError(failure_kind="quota", retryable=False)`이며, XML이 아니거나 코드가
 없으면 `KmaParseError`입니다.
 
+초당 제한 `23`은 `KmaRequestError(failure_kind="rate_limit", retryable=True)`로
+분류합니다. 16KiB 이하의 표준 JSON/XML 23 오류는 기존 HTTP `retries` 예산 안에서
+토큰·백오프·`Retry-After`를 공유해 재시도하고, 소진 후 기존 파서가 최종 오류를 전달합니다.
+일일 한도 22나 인증 오류를 재시도하지 않으며 정상 대용량 응답의 추가 해석도 없습니다.
+
 ## data.go.kr 검색에서 확인한 예시
 
 공식 data.go.kr 페이지에서 확인한 KMA REST 서비스 예시는 다음과 같습니다.

@@ -34,6 +34,10 @@ asyncio.run(main())
 일반·타입화 조회, 디버그, 페이지, APIHub 470개 생성 메서드, 탐색 호출은 같은 경로를 쓴다.
 첫 송신·재시도·각 리다이렉트마다 한 토큰을 소비한다. 기존 429/500/502/503/504 및 일시적인
 연결·timeout 재시도와 jitter/Retry-After를 유지하며, 401/403과 resultCode=22는 즉시 실패한다.
+HTTP 200의 표준 JSON/XML 초당 제한 23은 작은 오류 envelope(16KiB 이하)에서만 같은
+재시도 루프로 처리한다. 상태 코드 실패와 합쳐 최대 `retries + 1`회 시도하고 각 시도에
+공통 토큰을 소비한다. 최종 23은 `rate_limit`·`retryable=True`로 반환하며 큰 정상 본문은
+추가 해석하지 않는다. 일일 quota22를 초당 제한으로 오인해 재시도하지 않는다.
 HTTPX의 BasicAuth/기본 인증 흐름을 지원하고 추가 송신을 숨기는 Digest/custom Auth는 거부한다.
 사용자 정의 transport 내부의 추가 송신은 해당 transport의 책임이다.
 

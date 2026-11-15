@@ -40,6 +40,13 @@ TRANSIENT_REQUEST_ERRORS = (
 #: 인증/서버 오류와 달리 정상적인 빈 결과이므로 예외 대신 빈 body로 정규화한다.
 NO_DATA_RESULT_CODE = "03"
 
+# 정상 대용량 본문은 재해석하지 않고 작은 표준 오류 envelope만 확인한다.
+_RATE_LIMIT_ENVELOPE_MAX_BYTES = 16 * 1024
+_JSON_RATE_LIMIT_CODE = re.compile(rb'"resultCode"\s*:\s*(?:"23"|23(?=\s*[,}]))')
+_XML_RATE_LIMIT_CODE = re.compile(
+    rb"<(?:[\w.-]+:)?(?:returnReasonCode|resultCode)(?:\s[^>]*)?>\s*23\s*</"
+)
+
 
 def empty_kma_body(body: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """data.go.kr NO_DATA(``03``) 응답을 빈 결과 body로 정규화합니다.
@@ -145,6 +152,15 @@ def raise_for_kma_result_code(
             failure_kind="quota",
             retryable=False,
         )
+    if code == "23":
+        raise KmaRequestError(
+            text,
+            provider=provider,
+            endpoint=endpoint,
+            result_code=code,
+            failure_kind="rate_limit",
+            retryable=True,
+        )
     raise KmaRequestError(
         text,
         provider=provider,
@@ -153,6 +169,37 @@ def raise_for_kma_result_code(
         failure_kind="request",
         retryable=False,
     )
+
+
+def _kma_xml_error_values(text: str) -> dict[str, str] | None:
+    """정확한 gateway XML 루트/헤더 안의 오류 필드만 추출합니다."""
+    # HTTP decoder가 BOM을 보존해도 오류 envelope 판별이 무음으로 빠지지 않는다.
+    stripped = text.lstrip("\ufeff \t\r\n")
+    if not stripped.startswith("<"):
+        return None
+    try:
+        root = ElementTree.fromstring(stripped)
+    except ElementTree.ParseError:
+        return None
+
+    def _local_name(tag: object) -> str:
+        return str(tag).rsplit("}", 1)[-1]
+
+    if _local_name(root.tag) != "OpenAPI_ServiceResponse":
+        return None
+    header = next(
+        (child for child in root if _local_name(child.tag) == "cmmMsgHeader"),
+        None,
+    )
+    if header is None:
+        return None
+
+    values: dict[str, str] = {}
+    for element in header.iter():
+        tag = _local_name(element.tag)
+        if element.text is not None and tag not in values:
+            values[tag] = element.text.strip()
+    return values
 
 
 def raise_for_kma_xml_error_body(
@@ -165,38 +212,12 @@ def raise_for_kma_xml_error_body(
     """HTTP 200의 data.go.kr XML 오류 envelope를 분류합니다.
 
     JSON을 요청해도 gateway-level 오류는 ``OpenAPI_ServiceResponse`` XML로
-    반환될 수 있습니다. XML이 아니거나 인식 가능한 오류 코드가 없으면 호출자가
-    원래 parse error를 내도록 ``False``를 반환합니다. ``03``(NO_DATA)은 JSON
-    envelope와 같은 빈 성공 계약을 위해 ``True``를 반환하고, 나머지 오류는 typed
-    예외를 올립니다.
+    반환될 수 있습니다. 인식 불가능한 오류는 호출자의 parse error를 유지합니다.
+    ``03``은 JSON과 같은 빈 성공 계약이고 나머지는 typed 예외를 올립니다.
     """
-
-    # HTTP decoder가 BOM을 보존해도 오류 envelope 판별이 무음으로 빠지지 않는다.
-    stripped = text.lstrip("\ufeff \t\r\n")
-    if not stripped.startswith("<"):
+    values = _kma_xml_error_values(text)
+    if values is None:
         return False
-    try:
-        root = ElementTree.fromstring(stripped)
-    except ElementTree.ParseError:
-        return False
-
-    def _local_name(tag: object) -> str:
-        return str(tag).rsplit("}", 1)[-1]
-
-    if _local_name(root.tag) != "OpenAPI_ServiceResponse":
-        return False
-    header = next(
-        (child for child in root if _local_name(child.tag) == "cmmMsgHeader"),
-        None,
-    )
-    if header is None:
-        return False
-
-    values: dict[str, str] = {}
-    for element in header.iter():
-        tag = _local_name(element.tag)
-        if element.text is not None and tag not in values:
-            values[tag] = element.text.strip()
     code = values.get("returnReasonCode") or values.get("resultCode")
     if not code or code == "00":
         return False
@@ -216,6 +237,32 @@ def raise_for_kma_xml_error_body(
         label=label,
     )
     return False  # pragma: no cover - raise_for_kma_result_code는 항상 예외를 올린다.
+
+
+def _is_per_second_limit_envelope(response: Any) -> bool:
+    """작은 표준 오류의 코드 23만 확인하고 정상 본문의 추가 해석을 피합니다.
+
+    바이트 패턴은 해석 후보를 줄일 뿐이며 실제 재시도는 루트/헤더 구조를 확인한
+    뒤 결정합니다. 큰 응답·모의 세션의 content 없는 응답은 기존 파서에 맡깁니다.
+    """
+    content = getattr(response, "content", None)
+    if not isinstance(content, bytes) or len(content) > _RATE_LIMIT_ENVELOPE_MAX_BYTES:
+        return False
+    if _JSON_RATE_LIMIT_CODE.search(content):
+        try:
+            payload = response.json()
+        except ValueError:
+            return False
+        root = payload.get("response") if isinstance(payload, dict) else None
+        header = root.get("header") if isinstance(root, dict) else None
+        return isinstance(header, dict) and str(header.get("resultCode")) == "23"
+    if _XML_RATE_LIMIT_CODE.search(content):
+        values = _kma_xml_error_values(response.text)
+        return (
+            values is not None
+            and (values.get("returnReasonCode") or values.get("resultCode")) == "23"
+        )
+    return False
 
 
 def raise_for_kma_http_error(
@@ -335,7 +382,11 @@ async def get_with_retries(
             else:
                 response = await client.get(url, params=params, timeout=timeout)
             response.raise_for_status()
-            return response
+            # 최종 응답은 원래 클라이언트 파서가 typed 예외/비밀값 제거를 담당한다.
+            if attempt >= attempts - 1 or not _is_per_second_limit_envelope(response):
+                return response
+            retry_after = _retry_after_seconds(response)
+            await response.aclose()
         except httpx.HTTPStatusError as exc:
             if not _should_retry_status(exc) or attempt >= attempts - 1:
                 raise

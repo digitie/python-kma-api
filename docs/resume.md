@@ -1,5 +1,11 @@
 # RESUME — 작업 재개 가이드
 
+## 현재 상태 — 2026-11-15 초당 제한 23 복구
+
+- 표준 JSON/XML 23을 `rate_limit`·`retryable=True`로 분류하고 작은 오류 envelope(16KiB 이하)만 기존 HTTP 재시도 예산에서 복구한다. 최종 오류의 타입·키 가림과 22/auth/03/unknown 계약, 정상 대용량 단일 해석 경로는 유지한다.
+- 수정 전 새 회귀 13개 실패를 재현했다. 수정 후 집중 WSL 128개와 전체 오프라인 WSL/Docker 각각 306개·14 subtests 통과/12 integration 제외를 확인했다. 서로 겹치는 결과를 합산하지 않는다. 네트워크 호출·설치·배포·커밋/푸시는 하지 않았다.
+- 다음 한 작업: 상위 담당자가 변경을 PR/CI로 정산한 뒤 소비자 앱의 SDK SHA를 고정해 반영한다. 기존 F 드라이브 원본과 다른 작업자의 변경은 보존했다.
+
 ## 2026-10-23 — typed 페이지 완결 receipt (구현·검증 중)
 
 - Weather 성공 export가 부분 KMA 응답을 전체 집합으로 오인하지 않도록 `ResponseMetadata.pagination`과 공개 frozen `PaginationReceipt`를 추가한다. typed now/forecast는 페이지 echo·고정 totalCount/numOfRows·페이지별/누적 실제 행 수를 검증한다. 불일치는 typed KmaParseError이며 metadata 생략 레거시는 값을 유지하되 complete=False다.

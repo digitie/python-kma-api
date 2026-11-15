@@ -1,5 +1,10 @@
 # 변경 이력
 
+## 2026-11-15 — 초당 호출 한도 23의 제한된 복구
+
+- JSON/XML `resultCode=23`을 HTTP 429와 같은 `rate_limit`·`retryable=True`로 분류한다. 작은 표준 오류 envelope만 기존 HTTP 재시도 예산으로 복구하며 각 시도에 공통 TPS와 백오프·`Retry-After`를 적용한다.
+- 일일 한도 22·인증·03·알 수 없는 오류의 기존 분류와 정상 대용량 응답의 단일 해석 경로를 유지한다. 새 설정·중첩 재시도·실 API 호출은 추가하지 않는다.
+
 ## 2026-10-23 — typed pagination receipt
 
 - `ResponseMetadata.pagination`/`PaginationReceipt`로 페이지 완결 정보를 가산한다. 제공자 metadata/행 수 불일치와 중간 NO_DATA의 부분 성공을 거부한다. metadata 생략 응답의 기존 값·첫 NO_DATA03 빈 결과는 유지한다.
